@@ -13,6 +13,13 @@ namespace DFUQuest3
     [DefaultExecutionOrder(-5000)]
     public class VRSceneSetup : MonoBehaviour
     {
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Autostart()
+        {
+            var go = new GameObject("DFUQuest3 VRSceneSetup");
+            go.AddComponent<VRSceneSetup>();
+        }
+
         void Awake()
         {
             // Input System must be active for XRI 3.x actions
