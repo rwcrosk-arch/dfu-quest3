@@ -1,0 +1,32 @@
+<!-- DFU Quest3 VR — Android manifest override for Meta Quest. -->
+<!-- Unity 6 merges this with its own template. Key additions:
+     Quest category (vr_only → appears in VR library not 2D panels),
+     OpenXR loader, controller/hand tracking permissions, and
+     com.oculus.supportedDevices to hint Quest firmware. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:oculus="http://schemas.android.com/apk/res-auto">
+    <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
+    <uses-feature android:name="com.oculus.feature.VR_MODE" android:required="true" />
+    <uses-feature android:name="oculus.software.handtracking" android:required="false" />
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" android:required="false" />
+    <application>
+        <activity android:name="com.unity3d.player.UnityPlayerActivity"
+                  android:theme="@style/UnityThemeSelector"
+                  android:exported="true"
+                  android:launchMode="singleTask"
+                  android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density"
+                  android:resizeableActivity="false"
+                  android:hardwareAccelerated="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <!-- Land in the VR app library (not 2D panels) -->
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
+            </intent-filter>
+            <meta-data android:name="android.app.lib_name" android:value="unity" />
+            <meta-data android:name="unityplayer.SkipPermissionsDialog" android:value="false" />
+        </activity>
+        <meta-data android:name="com.oculus.supportedDevices" android:value="quest|quest2|questpro|quest3|quest3s" />
+        <meta-data android:name="com.oculus.vr.focusaware" android:value="true" />
+    </application>
+</manifest>
