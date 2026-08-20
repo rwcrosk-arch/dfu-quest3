@@ -10,9 +10,9 @@ public class SetExternalTools {
         // NDK will be wired once the background download lands
         var ndk = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile) + "/Android/Sdk/ndk/r27c";
         if (System.IO.Directory.Exists(ndk)) {
-            EditorPrefs.SetString("AndroidNdkRoot", ndk);
+            EditorPrefs.SetString("AndroidNdkRootR27C", ndk); EditorPrefs.SetString("AndroidNdkRoot", ndk);
             EditorPrefs.SetBool("NdkUseEmbedded", false);
         }
-        Debug.Log("TOOLS_SET: sdk=" + EditorPrefs.GetString("AndroidSdkRoot") + " jdk=" + EditorPrefs.GetString("JdkPath") + " ndk=" + EditorPrefs.GetString("AndroidNdkRoot"));
+        EditorApplication.Exit(0); Debug.Log("TOOLS_SET: sdk=" + EditorPrefs.GetString("AndroidSdkRoot") + " jdk=" + EditorPrefs.GetString("JdkPath") + " ndk=" + EditorPrefs.GetString("AndroidNdkRoot"));
     }
 }

@@ -1,4 +1,4 @@
-﻿using Mono.CSharp;
+using Mono.CSharp;
 using System;
 using System.CodeDom;
 using System.CodeDom.Compiler;
@@ -235,6 +235,10 @@ namespace CSharpCompiler
         CompilerResults CompileFromCompilerSettings(CompilerSettings settings, bool generateInMemory)
         {
             var compilerResults = new CompilerResults(new TempFileCollection(Path.GetTempPath()));
+#if UNITY_ANDROID
+            compilerResults.Errors.Add(new CompilerError { IsWarning = false, ErrorText = "Runtime C# compilation is not supported on Android (IL2CPP AOT-only). Ship precompiled mod assemblies." });
+            return compilerResults;
+#else
             var driver = new CustomDynamicDriver(new CompilerContext(settings, new CustomReportPrinter(compilerResults)));
 
             AssemblyBuilder outAssembly = null;
@@ -253,6 +257,7 @@ namespace CSharpCompiler
             compilerResults.CompiledAssembly = outAssembly;
 
             return compilerResults;
+#endif
         }
 
 

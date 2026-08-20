@@ -1,4 +1,7 @@
-﻿// modified version of Mono.CSharp.Driver
+#if !UNITY_ANDROID
+// Runtime mod compilation requires Mono's AssemblyBuilderAccess.RunAndSave,
+// unavailable under IL2CPP/Android (AOT-only). Android/Quest uses precompiled mod DLLs.
+// modified version of Mono.CSharp.Driver
 
 // driver.cs: The compiler command line driver.
 //
@@ -316,3 +319,4 @@ namespace CSharpCompiler
     }
 
 }
+#endif
