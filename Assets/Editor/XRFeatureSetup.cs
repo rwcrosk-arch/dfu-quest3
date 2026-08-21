@@ -40,7 +40,13 @@ namespace DFUQuest3.EditorTools
                 }
                 if (f == null) continue;
                 string name = f.GetType().Name;
-                if (name.Contains("OculusTouchControllerProfile") || name.Contains("MetaQuestTouchPlusControllerProfile"))
+                // Enable everything needed for Quest 3 controllers: the touch interaction
+                // profiles (plus/pro), the Meta/Oculus Quest feature extensions.
+                if (name.Contains("OculusTouchControllerProfile") ||
+                    name.Contains("MetaQuestTouchPlusControllerProfile") ||
+                    name.Contains("MetaQuestTouchProControllerProfile") ||
+                    name.Contains("MetaQuestFeature") ||
+                    name.Contains("OculusQuestFeature"))
                 {
                     if (!f.enabled)
                     {
