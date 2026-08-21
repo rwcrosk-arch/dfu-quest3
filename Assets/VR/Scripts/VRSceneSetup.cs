@@ -70,7 +70,18 @@ namespace DFUQuest3
             cam.clearFlags = CameraClearFlags.Skybox;
             origin.Camera = cam;
             camGO.AddComponent<AudioListener>();
-            // XRI 3.x: tracking is attached via the XROrigin, no separate camera controller.
+
+            // Head tracking: TrackedPoseDriver (Input System) drives the camera from the headset.
+            // Without this, the view is pinned to the world and head rotation does nothing.
+            var tpd = camGO.AddComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
+            tpd.positionInput = new UnityEngine.InputSystem.InputActionProperty(
+                new UnityEngine.InputSystem.InputAction("Position", UnityEngine.InputSystem.InputActionType.Value, null, null,
+                    null, null, null, new UnityEngine.InputSystem.InputBinding { path = "<XRHMD>/centerEyePosition" }));
+            tpd.rotationInput = new UnityEngine.InputSystem.InputActionProperty(
+                new UnityEngine.InputSystem.InputAction("Rotation", UnityEngine.InputSystem.InputActionType.Value, null, null,
+                    null, null, null, new UnityEngine.InputSystem.InputBinding { path = "<XRHMD>/centerEyeRotation" }));
+            tpd.trackingType = UnityEngine.InputSystem.XR.TrackingType.RotationAndPosition;
+            tpd.updateType = UnityEngine.InputSystem.XR.TrackedPoseDriver.UpdateType.BeforeRender;
 
             // Controllers (simple tracked pose — XRI 3.x actions via defaults)
             var leftGO = new GameObject("Left Controller");
