@@ -58,6 +58,13 @@ namespace DFUQuest3.EditorTools
                     {
                         Debug.Log("[XRFEATURE] Already enabled " + name);
                     }
+
+                    // For MetaQuestFeature, also enable the Quest 3 target device so the
+                    // "No Quest target devices selected" validation passes.
+                    if (name == "MetaQuestFeature")
+                    {
+                        EnableQuestDevice(f);
+                    }
                 }
             }
             Debug.Log("[XRFEATURE] enabled " + enabled + " profiles");
@@ -66,6 +73,28 @@ namespace DFUQuest3.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[XRFEATURE] done");
+        }
+
+        // Enables the Quest 3 target device on a MetaQuestFeature instance via reflection
+        // (targetDevices + EnableTargetDevice are internal).
+        static void EnableQuestDevice(UnityEngine.Object feature)
+        {
+            var t = feature.GetType();
+            var targetDevicesField = t.GetField("targetDevices", BindingFlags.NonPublic | BindingFlags.Instance);
+            var list = targetDevicesField?.GetValue(feature) as System.Collections.IList;
+            if (list == null) { Debug.LogWarning("[XRFEATURE] no targetDevices on MetaQuestFeature"); return; }
+
+            // EnableTargetDevice(manifestName, enabled) is internal — call via reflection.
+            var enableMethod = t.GetMethod("EnableTargetDevice", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (enableMethod == null) { Debug.LogWarning("[XRFEATURE] no EnableTargetDevice method"); return; }
+
+            // Enable Quest 3 ("eureka") and Quest 3S, Quest, Quest2 as fallback.
+            foreach (var devName in new[] { "eureka", "quest3s", "quest", "quest2" })
+            {
+                enableMethod.Invoke(feature, new object[] { devName, true });
+            }
+            EditorUtility.SetDirty(feature);
+            Debug.Log("[XRFEATURE] enabled Quest target devices on MetaQuestFeature");
         }
     }
 }
