@@ -139,9 +139,9 @@ namespace DFUQuest3
             {
                 diagTimer = 2f;
                 // OVRInput state
-                string ovr = $"OVR pos={rt.position} rot={rt.rotation.eulerAngles} trig={rt.triggerDown}";
+                string ovr = $"OVR pos={Oculus.OvrInputHelpers.RTouch.position} trig={Oculus.OvrInputHelpers.RTouch.triggerDown}";
                 // UnityEngine.XR InputDevices state (the OpenXR path)
-                var allDevices = new System.Collections.Generic.List<InputDevice>();
+                var allDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
                 InputDevices.GetDevices(allDevices);
                 string xr = "XRDevices=[";
                 foreach (var d in allDevices)
