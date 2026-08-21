@@ -51,6 +51,16 @@ namespace DFUQuest3
             panelGO.transform.position = pos;
             panelGO.transform.rotation = Quaternion.LookRotation(pos - cameraTransform.position);
 
+            // Sync the quad texture to DFU's current render target every frame —
+            // UserInterfaceRenderTarget.Update() recreates the texture, so a one-time
+            // assignment goes stale (black box).
+            if (uiTarget != null && uiTarget.TargetTexture != null)
+            {
+                var rend = panelGO.GetComponent<Renderer>();
+                if (rend.sharedMaterial.mainTexture != uiTarget.TargetTexture)
+                    rend.sharedMaterial.mainTexture = uiTarget.TargetTexture;
+            }
+
             HandlePointer();
         }
 
