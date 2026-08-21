@@ -317,7 +317,7 @@ namespace DaggerfallWorkshop.Game
 
         public string FontsFolder
         {
-            get { return Path.Combine(Application.streamingAssetsPath, fontsFolderName); }
+            get { return Path.Combine(DFUQuest3.AndroidStreamingAssets.Resolve(), fontsFolderName); }
         }
 
         public PaperDollRenderer PaperDollRenderer

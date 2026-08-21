@@ -16,6 +16,11 @@ namespace DFUQuest3
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
         {
+            // Only engage the VR rig when an XR device/loader is actually active
+            // (OpenXR initialized). In flat/non-XR builds this must stay silent so
+            // DFU's normal camera/menu flow is untouched.
+            if (XRSettings.isDeviceActive == false)
+                return;
             var go = new GameObject("DFUQuest3 VRSceneSetup");
             go.AddComponent<VRSceneSetup>();
         }

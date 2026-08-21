@@ -19,9 +19,10 @@
                   android:hardwareAccelerated="false">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <!-- Land in the VR app library (not 2D panels) -->
                 <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="com.oculus.intent.category.VR" />
+                <!-- NOTE: For the flat/verification build we do NOT declare VR here,
+                     so Horizon launches it as a normal 2D panel. The VR intent-filter
+                     (com.oculus.intent.category.VR) is added back for the actual XR build. -->
             </intent-filter>
             <meta-data android:name="android.app.lib_name" android:value="unity" />
             <meta-data android:name="unityplayer.SkipPermissionsDialog" android:value="false" />

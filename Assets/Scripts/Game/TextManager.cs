@@ -691,8 +691,12 @@ namespace DaggerfallWorkshop.Game
         {
             // Get all text files in target path
             Debug.Log("TextManager enumerating text databases.");
-            string path = Path.Combine(Application.streamingAssetsPath, textFolderName);
-            string[] files = Directory.GetFiles(path, "*.txt");
+            string path = Path.Combine(DFUQuest3.AndroidStreamingAssets.Resolve(), textFolderName);
+            string[] files;
+            if (Directory.Exists(path))
+                files = Directory.GetFiles(path, "*.txt");
+            else
+                files = new string[0]; // Text may live in Addressables localization bundles on Android
 
             // Attempt to read each file as a table with a text schema
             foreach (string file in files)
