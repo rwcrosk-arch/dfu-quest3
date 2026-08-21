@@ -121,7 +121,7 @@ namespace DFUQuest3
             // === PRIMARY: UnityEngine.XR.InputDevices (the OpenXR path) ===
             // OVRInput is dead under OpenXR. Enumerate the device list to find the
             // right-hand controller robustly (XRNode.RightHand handle can be invalid).
-            InputDevice rightHand = default;
+            UnityEngine.XR.InputDevice rightHand = default;
             var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
             InputDevices.GetDevices(devices);
             foreach (var d in devices)
@@ -149,10 +149,10 @@ namespace DFUQuest3
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-                InputDevices.GetDevices(devices);
+                var diagDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(diagDevices);
                 string devs = "";
-                foreach (var d in devices)
+                foreach (var d in diagDevices)
                 {
                     devs += d.name + "(" + d.characteristics + ") ";
                 }
