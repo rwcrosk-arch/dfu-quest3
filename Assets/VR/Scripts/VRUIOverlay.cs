@@ -7,6 +7,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.InputSystem;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.UserInterface;
 
@@ -28,6 +29,9 @@ namespace DFUQuest3
         bool wired;
         bool lastTrigger;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
+
+        // Input System actions for the right-hand controller.
+        UnityEngine.InputSystem.InputAction rightTrigger, rightPose, rightRot;
 
         public void Init(Transform cam)
         {
@@ -112,23 +116,44 @@ namespace DFUQuest3
 
         void HandlePointer()
         {
-            // Read right-hand controller for position + trigger.
-            var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
             bool trigger = false;
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            if (rightHand.isValid)
+            // Input System path (modern OpenXR controllers). Bindings use the standard
+            // XR controller layout names so they resolve to the Quest touch controllers.
+            if (rightTrigger == null)
             {
-                if (rightHand.TryGetFeatureValue(CommonUsages.trigger, out float t)) trigger = t > 0.5f;
-                if (rightHand.TryGetFeatureValue(CommonUsages.devicePosition, out origin) &&
-                    rightHand.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion r))
+                rightTrigger = new InputAction("RightTrigger", InputActionType.Button, "<XRController>{RightHand}/trigger");
+                rightPose = new InputAction("RightPose", InputActionType.Value, "<XRController>{RightHand}/devicePosition");
+                rightRot = new InputAction("RightRot", InputActionType.Value, "<XRController>{RightHand}/deviceRotation");
+                rightTrigger.Enable(); rightPose.Enable(); rightRot.Enable();
+            }
+            trigger = rightTrigger.ReadValue<float>() > 0.5f;
+            if (rightPose.activeControl != null)
+            {
+                origin = rightPose.ReadValue<Vector3>();
+                dir = rightRot.ReadValue<Quaternion>() * Vector3.forward;
+                hasRay = true;
+            }
+
+            // Fallback to legacy XRNode device (older path).
+            if (!hasRay)
+            {
+                var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+                if (rightHand.isValid)
                 {
-                    dir = r * Vector3.forward;
-                    hasRay = true;
+                    if (rightHand.TryGetFeatureValue(CommonUsages.trigger, out float t)) trigger = t > 0.5f;
+                    if (rightHand.TryGetFeatureValue(CommonUsages.devicePosition, out origin) &&
+                        rightHand.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion r))
+                    {
+                        dir = r * Vector3.forward;
+                        hasRay = true;
+                    }
                 }
             }
 
+            // If no controller pose, fall back to head pointer.
             if (!hasRay && cameraTransform != null)
             {
                 origin = cameraTransform.position;
