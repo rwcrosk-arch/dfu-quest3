@@ -152,7 +152,12 @@ namespace DFUQuest3
                 Vector2 screen = new Vector2(lastUv.x * Screen.width, (1f - lastUv.y) * Screen.height);
                 dfUI.CustomMousePosition = screen;
                 if (trigger && !lastTrigger)
+                {
+                    // Synthesize a left-click so the menu responds to the trigger.
+                    var im = DaggerfallWorkshop.Game.InputManager.Instance;
+                    if (im != null) im.vrClickQueued = true;
                     Debug.Log("[DFUQuest3] Trigger press at uv=" + lastUv + " screen=" + screen);
+                }
             }
             lastTrigger = trigger;
         }
