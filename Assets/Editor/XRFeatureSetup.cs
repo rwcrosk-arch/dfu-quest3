@@ -40,14 +40,22 @@ namespace DFUQuest3.EditorTools
                 }
                 if (f == null) continue;
                 string name = f.GetType().Name;
-                // Enable everything needed for Quest 3: interaction profiles (register
-                // controllers) + the Meta/Oculus Quest features (native extensions now
-                // buildable since CMake 3.22.1 is installed).
+                // Disable MetaQuestFeature/OculusQuestFeature — they require native .so
+                // extensions that aren't bundling cleanly ("Native extension for Android
+                // target not found" fails the build).
+                if (name.Contains("MetaQuestFeature") || name.Contains("OculusQuestFeature"))
+                {
+                    if (f.enabled)
+                    {
+                        f.enabled = false;
+                        Debug.Log("[XRFEATURE] DISABLED " + name + " (native extension breaks build)");
+                    }
+                    continue;
+                }
+                // Enable ONLY the interaction profiles — these register the Quest controllers.
                 if (name.Contains("OculusTouchControllerProfile") ||
                     name.Contains("MetaQuestTouchPlusControllerProfile") ||
-                    name.Contains("MetaQuestTouchProControllerProfile") ||
-                    name.Contains("MetaQuestFeature") ||
-                    name.Contains("OculusQuestFeature"))
+                    name.Contains("MetaQuestTouchProControllerProfile"))
                 {
                     if (!f.enabled)
                     {
@@ -58,13 +66,6 @@ namespace DFUQuest3.EditorTools
                     else
                     {
                         Debug.Log("[XRFEATURE] Already enabled " + name);
-                    }
-
-                    // For MetaQuestFeature, also enable the Quest 3 target device so
-                    // validation passes and the controller interaction registers.
-                    if (name.Contains("MetaQuestFeature"))
-                    {
-                        EnableQuestDevice(f);
                     }
                 }
             }
