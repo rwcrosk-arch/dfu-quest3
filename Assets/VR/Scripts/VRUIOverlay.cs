@@ -118,36 +118,42 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            // === PRIMARY: OVRInput (Meta's direct Quest API — guaranteed reliable) ===
-            // 6DOF right-controller pose + trigger.
-            var rt = Oculus.OvrInputHelpers.RTouch;
-            origin = rt.position;
-            dir = rt.rotation * Vector3.forward;
-            hasRay = true;
-            trigger = rt.triggerDown;
+            // === PRIMARY: UnityEngine.XR.InputDevices (the OpenXR path) ===
+            // OVRInput is dead under OpenXR (different input stack), so we must read
+            // the controller via InputDevices which OpenXR fills with Quest Touch.
+            var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            if (rightHand.isValid)
+            {
+                if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t)) trigger = t > 0.5f;
+                if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out origin) &&
+                    rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion r))
+                {
+                    dir = r * Vector3.forward;
+                    hasRay = true;
+                }
+            }
 
-            // Periodic diagnostics so we can see OVRInput state on-device.
+            // Periodic diagnostics so we can see controller state on-device.
             diagTimer -= Time.unscaledDeltaTime;
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                Debug.Log($"[DFUQuest3] OVR RTouch pos={rt.position} rot={rt.rotation.eulerAngles} trigger={rt.triggerDown} stick={rt.thumbstick} wired={wired}");
-            }
-
-            // Fallback to legacy XRNode device (older path).
-            if (!hasRay)
-            {
-                var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-                if (rightHand.isValid)
+                // OVRInput state
+                string ovr = $"OVR pos={rt.position} rot={rt.rotation.eulerAngles} trig={rt.triggerDown}";
+                // UnityEngine.XR InputDevices state (the OpenXR path)
+                var allDevices = new System.Collections.Generic.List<InputDevice>();
+                InputDevices.GetDevices(allDevices);
+                string xr = "XRDevices=[";
+                foreach (var d in allDevices)
                 {
-                    if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t)) trigger = t > 0.5f;
-                    if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out origin) &&
-                        rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion r))
-                    {
-                        dir = r * Vector3.forward;
-                        hasRay = true;
-                    }
+                    xr += d.name + "(" + d.characteristics + ") ";
                 }
+                xr += "]";
+                // RightHand specific
+                var rh = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+                bool rhValid = rh.isValid;
+                string rhInfo = rhValid ? "RH valid" : "RH INVALID";
+                Debug.Log($"[DFUQuest3] {ovr} | {rhInfo} | {xr}");
             }
 
             // If no controller pose, fall back to head pointer.
