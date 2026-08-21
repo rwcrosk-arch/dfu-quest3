@@ -30,9 +30,6 @@ namespace DFUQuest3
         bool lastTrigger;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
 
-        // Input System actions for the right-hand controller.
-        UnityEngine.InputSystem.InputAction rightTrigger, rightPose, rightRot;
-
         public void Init(Transform cam)
         {
             cameraTransform = cam;
@@ -120,22 +117,13 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            // Input System path (modern OpenXR controllers). Bindings match XRI's
-            // convention: {Trigger} placeholder + {RightHand} brace-wrapped device.
-            if (rightTrigger == null)
-            {
-                rightTrigger = new InputAction("RightTrigger", InputActionType.Button, "<XRController>{RightHand}/{Trigger}");
-                rightPose = new InputAction("RightPose", InputActionType.Value, "<XRController>{RightHand}/devicePosition");
-                rightRot = new InputAction("RightRot", InputActionType.Value, "<XRController>{RightHand}/deviceRotation");
-                rightTrigger.Enable(); rightPose.Enable(); rightRot.Enable();
-            }
-            trigger = rightTrigger.ReadValue<float>() > 0.5f;
-            if (rightPose.activeControl != null)
-            {
-                origin = rightPose.ReadValue<Vector3>();
-                dir = rightRot.ReadValue<Quaternion>() * Vector3.forward;
-                hasRay = true;
-            }
+            // === PRIMARY: OVRInput (Meta's direct Quest API — guaranteed reliable) ===
+            // 6DOF right-controller pose + trigger.
+            var rt = Oculus.OvrInputHelpers.RTouch;
+            origin = rt.position;
+            dir = rt.rotation * Vector3.forward;
+            hasRay = true;
+            trigger = rt.triggerDown;
 
             // Fallback to legacy XRNode device (older path).
             if (!hasRay)
