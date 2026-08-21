@@ -1,4 +1,5 @@
-﻿using System.CodeDom.Compiler;
+#if !UNITY_ANDROID
+using System.CodeDom.Compiler;
 using Mono.CSharp;
 
 namespace CSharpCompiler
@@ -45,3 +46,4 @@ namespace CSharpCompiler
     }
 
 }
+#endif

@@ -43,7 +43,7 @@ namespace DFUQuest3
             cam.clearFlags = CameraClearFlags.Skybox;
             origin.Camera = cam;
             camGO.AddComponent<AudioListener>();
-            camGO.AddComponent<UnityEngine.XR.Interaction.Toolkit.XRCameraController>();
+            // XRI 3.x: tracking is attached via the XROrigin, no separate camera controller.
 
             // Controllers (simple tracked pose — XRI 3.x actions via defaults)
             var leftGO = new GameObject("Left Controller");

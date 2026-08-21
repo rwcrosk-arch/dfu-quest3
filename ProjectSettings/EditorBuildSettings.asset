@@ -16,6 +16,8 @@ EditorBuildSettings:
       type: 2}
     com.unity.localization.settings: {fileID: 11400000, guid: b7df2f040b496394c82fa580d167aeb2,
       type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 89acb157049f52efab1e3e1caa544582,
+      type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: cfb8a8c7f317e6a43a411d2af6e486a3,
       type: 2}
   m_UseUCBPForAssetBundles: 0

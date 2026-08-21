@@ -2,6 +2,7 @@ using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.Build;
 using UnityEngine;
+using System.Linq;
 public class BuildDFU {
     public static void BuildLinux() {
         var opts = new BuildPlayerOptions {
@@ -52,5 +53,21 @@ public class BuildDFU {
         if (bt != null)
             foreach (var p2 in bt.GetProperties(System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.Static))
                 Debug.Log("BT: " + p2.Name + "=" + (p2.CanRead ? p2.GetValue(null) : "?"));
+    }
+    public static void BuildAddressablesContent()
+    {
+        // Build DFU's Addressables player content into the APK's assets/aaData
+        var settings = UnityEditor.AddressableAssets.AddressableAssetSettingsDefaultObject.Settings;
+        if (settings == null) { Debug.LogError("ADDR: no AddressableAssetSettings found"); return; }
+        // Addressables editor API lives in its own asmdef; use reflection to avoid
+        // adding an explicit assembly reference to Assembly-CSharp-Editor.
+        var asm = System.Reflection.Assembly.Load("Unity.Addressables.Editor");
+        var t = asm.GetType("UnityEditor.AddressableAssets.Settings.AddressableAssetSettings");
+        // Pick the parameterless BuildPlayerContent() overload (there are several).
+        var m = t.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                  .FirstOrDefault(x => x.Name == "BuildPlayerContent" && x.GetParameters().Length == 0);
+        if (m != null) { m.Invoke(null, null); Debug.Log("ADDR: content built via reflection"); }
+        else Debug.LogError("ADDR: BuildPlayerContent method not found");
+        Debug.Log("ADDR: content built");
     }
 }

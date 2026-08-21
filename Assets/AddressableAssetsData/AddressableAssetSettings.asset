@@ -15,9 +15,11 @@ MonoBehaviour:
   m_DefaultGroup: fa06e64cd45885541a4565d8fafeb221
   m_currentHash:
     serializedVersion: 2
-    Hash: 3c510cbfe91274b669282338e95c23c1
+    Hash: 00000000000000000000000000000000
+  m_DisableWriteTypeTree: 0
   m_OptimizeCatalogSize: 0
   m_BuildRemoteCatalog: 0
+  m_BundleLocalCatalog: 0
   m_CatalogRequestsTimeout: 0
   m_DisableCatalogUpdateOnStart: 0
   m_InternalIdNamingMode: 0
@@ -32,9 +34,13 @@ MonoBehaviour:
   m_IgnoreUnsupportedFilesInBuild: 0
   m_UniqueBundleIds: 0
   m_EnableJsonCatalog: 0
+  m_CatalogProviderType:
+    m_AssemblyName: Unity.Addressables
+    m_ClassName: UnityEngine.AddressableAssets.ResourceProviders.BinaryCatalogProvider
   m_NonRecursiveBuilding: 0
   m_AllowNestedBundleFolders: 0
   m_CCDEnabled: 0
+  m_ContentDirectoryGroupTemplateCreated: 0
   m_maxConcurrentWebRequests: 500
   m_UseUWRForLocalBundles: 0
   m_BundleTimeout: 0
@@ -44,7 +50,7 @@ MonoBehaviour:
   m_SharedBundleSettingsCustomGroupIndex: 0
   m_simulatedLoadDelay: 0.1
   m_ContiguousBundles: 0
-  m_StripUnityVersionFromBundleBuild: 0
+  mStripUnityVersion: 0
   m_DisableVisibleSubAssetRepresentations: 0
   m_BuiltInBundleNaming: 0
   mBuiltInBundleCustomNaming: 
@@ -128,3 +134,6 @@ MonoBehaviour:
   - {fileID: 11400000, guid: c1321d28703468e4dbe1070897620e21, type: 2}
   - {fileID: 11400000, guid: 065fd10249220394ea8a07aa80c63a7c, type: 2}
   m_ActiveProfileId: 183dee86d7825d74381a2cfb6aa381c9
+  m_ContentDirectoryCatalogNameMigrated: 0
+  m_CatalogFormatMigrated: 1
+  m_CrcCachedBundleFlagMigrated: 1

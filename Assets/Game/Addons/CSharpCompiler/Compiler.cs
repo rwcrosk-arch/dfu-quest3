@@ -13,8 +13,10 @@ using System;
 using System.Reflection;
 using System.Linq;
 using System.Text;
+#if !UNITY_ANDROID
 using System.CodeDom;
 using System.CodeDom.Compiler;
+#endif
 using System.Collections.Generic;
 
 
@@ -23,7 +25,9 @@ namespace DaggerfallWorkshop.Game.Utility
     public class Compiler
     {
         private static Dictionary<string, Assembly> DynamicAssemblyResolver = new Dictionary<string, Assembly>();
+#if !UNITY_ANDROID
         private static CSharpCompiler.CodeCompiler CodeCompiler;
+#endif
 
 
         public static IEnumerable<Type> GetLoadableTypes(Assembly assembly)
@@ -42,6 +46,11 @@ namespace DaggerfallWorkshop.Game.Utility
 
         public static Assembly CompileSource(string[] sources, bool isSource, bool GenerateInMemory = true)
         {
+#if UNITY_ANDROID
+            // Runtime C# compilation is not supported on Android (IL2CPP/AOT-only).
+            // Mods must ship as precompiled assemblies. See DFUQuest3.
+            return null;
+#else
             if (CodeCompiler == null)
                 CodeCompiler = new CSharpCompiler.CodeCompiler();
             var compilerparams = new CompilerParameters();
@@ -115,6 +124,7 @@ namespace DaggerfallWorkshop.Game.Utility
 
             // Return the assembly
             return result.CompiledAssembly;
+#endif
         }
 
         static bool GetSpecificLine(string text, int lineNumber, out string line)
