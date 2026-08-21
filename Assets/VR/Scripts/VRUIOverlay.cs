@@ -138,22 +138,10 @@ namespace DFUQuest3
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                // OVRInput state
-                string ovr = $"OVR pos={Oculus.OvrInputHelpers.RTouch.position} trig={Oculus.OvrInputHelpers.RTouch.triggerDown}";
-                // UnityEngine.XR InputDevices state (the OpenXR path)
-                var allDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-                InputDevices.GetDevices(allDevices);
-                string xr = "XRDevices=[";
-                foreach (var d in allDevices)
-                {
-                    xr += d.name + "(" + d.characteristics + ") ";
-                }
-                xr += "]";
-                // RightHand specific
                 var rh = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-                bool rhValid = rh.isValid;
-                string rhInfo = rhValid ? "RH valid" : "RH INVALID";
-                Debug.Log($"[DFUQuest3] {ovr} | {rhInfo} | {xr}");
+                rh.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 rp);
+                rh.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion rr);
+                Debug.Log($"[DFUQuest3] RH pos={rp} rot={rr.eulerAngles} valid={rh.isValid} | XRCam pos={cameraTransform?.position} fwd={cameraTransform?.forward}");
             }
 
             // If no controller pose, fall back to head pointer.
