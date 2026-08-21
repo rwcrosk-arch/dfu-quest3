@@ -40,13 +40,22 @@ namespace DFUQuest3.EditorTools
                 }
                 if (f == null) continue;
                 string name = f.GetType().Name;
-                // Enable everything needed for Quest 3 controllers: the touch interaction
-                // profiles (plus/pro), the Meta/Oculus Quest feature extensions.
+                // Disable MetaQuestFeature/OculusQuestFeature — they declare native
+                // extensions whose .so isn't bundled, failing OpenXR build validation
+                // ("Native extension for Android target not found").
+                if (name.Contains("MetaQuestFeature") || name.Contains("OculusQuestFeature"))
+                {
+                    if (f.enabled)
+                    {
+                        f.enabled = false;
+                        Debug.Log("[XRFEATURE] DISABLED " + name + " (native extension not bundled)");
+                    }
+                    continue;
+                }
+                // Enable ONLY the interaction profiles needed to register Quest controllers.
                 if (name.Contains("OculusTouchControllerProfile") ||
                     name.Contains("MetaQuestTouchPlusControllerProfile") ||
-                    name.Contains("MetaQuestTouchProControllerProfile") ||
-                    name.Contains("MetaQuestFeature") ||
-                    name.Contains("OculusQuestFeature"))
+                    name.Contains("MetaQuestTouchProControllerProfile"))
                 {
                     if (!f.enabled)
                     {
@@ -57,13 +66,6 @@ namespace DFUQuest3.EditorTools
                     else
                     {
                         Debug.Log("[XRFEATURE] Already enabled " + name);
-                    }
-
-                    // For MetaQuestFeature, also enable the Quest 3 target device so the
-                    // "No Quest target devices selected" validation passes.
-                    if (name == "MetaQuestFeature")
-                    {
-                        EnableQuestDevice(f);
                     }
                 }
             }
