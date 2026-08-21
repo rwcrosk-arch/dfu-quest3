@@ -32,7 +32,8 @@ namespace DFUQuest3
         {
 #if UNITY_ANDROID
             string r = Resolve();
-            bool need = !Directory.Exists(Path.Combine(r, "Fonts")) || !Directory.Exists(Path.Combine(r, "Tables"));
+            bool need = !Directory.Exists(Path.Combine(r, "Fonts")) || !Directory.Exists(Path.Combine(r, "Tables"))
+                || !Directory.Exists(Path.Combine(r, "Text"));
             if (need)
             {
                 try
@@ -71,24 +72,44 @@ namespace DFUQuest3
 #if UNITY_ANDROID
         static void CopyDir(string dir, string root)
         {
-            // Enumerate the bundled dir via UnityWebRequest is not possible for a listing,
-            // so we copy known files by probing. For Tables we copy the well-known quest
-            // table filenames that DFU needs at startup.
-            string[] needed = {
-                "Quests-GlobalVars.txt", "Quests-StaticMessages.txt", "Quests-Places.txt",
-                "Quests-Sounds.txt", "Quests-Items.txt", "Quests-Factions.txt",
-                "Quests-Foes.txt", "Quests-Diseases.txt", "Quests-Spells.txt"
-            };
             string destDir = Path.Combine(root, dir);
             Directory.CreateDirectory(destDir);
-            foreach (var f in needed)
+            if (dir == "Text")
             {
-                var uwr = UnityWebRequest.Get(Application.streamingAssetsPath + "/" + dir + "/" + f);
-                uwr.SendWebRequest();
-                while (!uwr.isDone) { }
-                if (uwr.result == UnityWebRequest.Result.Success)
-                    File.WriteAllBytes(Path.Combine(destDir, f), uwr.downloadHandler.data);
-                uwr.Dispose();
+                // The actual menu/system text databases (Text/*.txt). These are what
+                // TextManager enumerates and what the menu strings come from.
+                string[] needed = {
+                    "MainMenu.txt", "GameSettings.txt", "DialogShortcuts.txt", "ModSystem.txt"
+                };
+                foreach (var f in needed)
+                {
+                    var uwr = UnityWebRequest.Get(Application.streamingAssetsPath + "/" + dir + "/" + f);
+                    uwr.SendWebRequest();
+                    while (!uwr.isDone) { }
+                    if (uwr.result == UnityWebRequest.Result.Success)
+                        File.WriteAllBytes(Path.Combine(destDir, f), uwr.downloadHandler.data);
+                    else
+                        Debug.LogWarning("[DFUQuest3] Text file not found: " + f);
+                    uwr.Dispose();
+                }
+            }
+            else
+            {
+                // Tables: the well-known quest table filenames that DFU needs at startup.
+                string[] needed = {
+                    "Quests-GlobalVars.txt", "Quests-StaticMessages.txt", "Quests-Places.txt",
+                    "Quests-Sounds.txt", "Quests-Items.txt", "Quests-Factions.txt",
+                    "Quests-Foes.txt", "Quests-Diseases.txt", "Quests-Spells.txt"
+                };
+                foreach (var f in needed)
+                {
+                    var uwr = UnityWebRequest.Get(Application.streamingAssetsPath + "/" + dir + "/" + f);
+                    uwr.SendWebRequest();
+                    while (!uwr.isDone) { }
+                    if (uwr.result == UnityWebRequest.Result.Success)
+                        File.WriteAllBytes(Path.Combine(destDir, f), uwr.downloadHandler.data);
+                    uwr.Dispose();
+                }
             }
         }
 #endif

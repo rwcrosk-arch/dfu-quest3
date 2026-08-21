@@ -90,6 +90,8 @@ namespace DaggerfallWorkshop.Game
         Dictionary<KeyCode, JoystickUIActions> joystickUIDict = new Dictionary<KeyCode, JoystickUIActions>();
 
         KeyCode[] joystickUICache = new KeyCode[4]; //leftClick, rightClick, MiddleClick, Back
+        // VR controller trigger click flag — set by VRPlayerInput to synthesize a left click.
+        public bool vrClickQueued = false;
         String[] cameraAxisBindingCache = new String[2];
         String[] movementAxisBindingCache = new String[2];
         Dictionary<int, bool> modifierHeldFirstDict = new Dictionary<int, bool>();
@@ -1049,6 +1051,13 @@ namespace DaggerfallWorkshop.Game
 
         public bool GetMouseButtonDown(int button)
         {
+            // VR trigger injection: VRPlayerInput sets this flag to synthesize a
+            // controller-trigger click that flows through DFU's normal mouse path.
+            if (button == 0 && vrClickQueued)
+            {
+                vrClickQueued = false;
+                return true;
+            }
             return Input.GetMouseButtonDown(button) || (EnableController && GetKeyDown(joystickUICache[button], false));
         }
 
