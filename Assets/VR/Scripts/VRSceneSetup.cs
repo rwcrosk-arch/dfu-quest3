@@ -75,12 +75,10 @@ namespace DFUQuest3
             // Without this, the view is pinned to the world and head rotation does nothing.
             var tpd = camGO.AddComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
             tpd.positionInput = new UnityEngine.InputSystem.InputActionProperty(
-                new UnityEngine.InputSystem.InputAction("Position", UnityEngine.InputSystem.InputActionType.Value, null, null,
-                    null, null, null, new UnityEngine.InputSystem.InputBinding { path = "<XRHMD>/centerEyePosition" }));
+                new UnityEngine.InputSystem.InputAction("Position", UnityEngine.InputSystem.InputActionType.Value, "<XRHMD>/centerEyePosition"));
             tpd.rotationInput = new UnityEngine.InputSystem.InputActionProperty(
-                new UnityEngine.InputSystem.InputAction("Rotation", UnityEngine.InputSystem.InputActionType.Value, null, null,
-                    null, null, null, new UnityEngine.InputSystem.InputBinding { path = "<XRHMD>/centerEyeRotation" }));
-            tpd.trackingType = UnityEngine.InputSystem.XR.TrackingType.RotationAndPosition;
+                new UnityEngine.InputSystem.InputAction("Rotation", UnityEngine.InputSystem.InputActionType.Value, "<XRHMD>/centerEyeRotation"));
+            tpd.trackingType = UnityEngine.InputSystem.XR.TrackedPoseDriver.TrackingType.RotationAndPosition;
             tpd.updateType = UnityEngine.InputSystem.XR.TrackedPoseDriver.UpdateType.BeforeRender;
 
             // Controllers (simple tracked pose — XRI 3.x actions via defaults)
