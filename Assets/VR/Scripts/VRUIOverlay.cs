@@ -119,9 +119,20 @@ namespace DFUQuest3
             bool hasRay = false;
 
             // === PRIMARY: UnityEngine.XR.InputDevices (the OpenXR path) ===
-            // OVRInput is dead under OpenXR (different input stack), so we must read
-            // the controller via InputDevices which OpenXR fills with Quest Touch.
-            var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            // OVRInput is dead under OpenXR. Enumerate the device list to find the
+            // right-hand controller robustly (XRNode.RightHand handle can be invalid).
+            InputDevice rightHand = default;
+            var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+            InputDevices.GetDevices(devices);
+            foreach (var d in devices)
+            {
+                if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
+                    (d.characteristics & InputDeviceCharacteristics.Right) != 0)
+                {
+                    rightHand = d;
+                    break;
+                }
+            }
             if (rightHand.isValid)
             {
                 if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t)) trigger = t > 0.5f;
@@ -138,10 +149,14 @@ namespace DFUQuest3
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                var rh = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-                rh.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 rp);
-                rh.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion rr);
-                Debug.Log($"[DFUQuest3] RH pos={rp} rot={rr.eulerAngles} valid={rh.isValid} | XRCam pos={cameraTransform?.position} fwd={cameraTransform?.forward}");
+                var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(devices);
+                string devs = "";
+                foreach (var d in devices)
+                {
+                    devs += d.name + "(" + d.characteristics + ") ";
+                }
+                Debug.Log($"[DFUQuest3] devices=[{devs}] XRCam pos={cameraTransform?.position} fwd={cameraTransform?.forward}");
             }
 
             // If no controller pose, fall back to head pointer.
