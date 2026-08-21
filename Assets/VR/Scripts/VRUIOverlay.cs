@@ -120,11 +120,11 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            // Input System path (modern OpenXR controllers). Bindings use the standard
-            // XR controller layout names so they resolve to the Quest touch controllers.
+            // Input System path (modern OpenXR controllers). Bindings match XRI's
+            // convention: {Trigger} placeholder + {RightHand} brace-wrapped device.
             if (rightTrigger == null)
             {
-                rightTrigger = new InputAction("RightTrigger", InputActionType.Button, "<XRController>{RightHand}/trigger");
+                rightTrigger = new InputAction("RightTrigger", InputActionType.Button, "<XRController>{RightHand}/{Trigger}");
                 rightPose = new InputAction("RightPose", InputActionType.Value, "<XRController>{RightHand}/devicePosition");
                 rightRot = new InputAction("RightRot", InputActionType.Value, "<XRController>{RightHand}/deviceRotation");
                 rightTrigger.Enable(); rightPose.Enable(); rightRot.Enable();
