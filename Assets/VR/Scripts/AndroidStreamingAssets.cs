@@ -32,8 +32,13 @@ namespace DFUQuest3
         {
 #if UNITY_ANDROID
             string r = Resolve();
-            bool need = !Directory.Exists(Path.Combine(r, "Fonts")) || !Directory.Exists(Path.Combine(r, "Tables"))
-                || !Directory.Exists(Path.Combine(r, "Text"));
+            // Re-extract unless ALL key files are present (dir existence alone is
+            // insufficient — a prior partial run may have created empty dirs).
+            bool need =
+                !Directory.Exists(Path.Combine(r, "Fonts")) || !Directory.Exists(Path.Combine(r, "Tables")) ||
+                !Directory.Exists(Path.Combine(r, "Text")) ||
+                !File.Exists(Path.Combine(r, "Text", "MainMenu.txt")) ||
+                !File.Exists(Path.Combine(r, "Tables", "Quests-GlobalVars.txt"));
             if (need)
             {
                 try
