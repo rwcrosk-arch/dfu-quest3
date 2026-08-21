@@ -1,0 +1,10 @@
+# ninja log v5
+1	657	1787343092039162127	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	195c843534367f9d
+1	700	1787343092078744840	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	5a46cd1cfd796d0c
+1	735	1787343092116973138	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	d02109ef976fc3b1
+1	794	1787343092174624531	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	c485b4f82de73238
+1	889	1787343092268990215	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	f8ea747fbb39847c
+1	894	1787343092275037931	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	99f9c0f2a44a7ada
+0	1038	1787343092418540122	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	3579381fd61a5c
+1	1127	1787343092507783891	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	fb464fc4737bd429
+1127	1156	1787343092539239951	/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/3g534424/obj/arm64-v8a/libgame.so	88642620cdf02310
