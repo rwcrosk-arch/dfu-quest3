@@ -29,6 +29,7 @@ namespace DFUQuest3
         bool wired;
         bool lastTrigger;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
+        float diagTimer = 2f;
 
         public void Init(Transform cam)
         {
@@ -124,6 +125,14 @@ namespace DFUQuest3
             dir = rt.rotation * Vector3.forward;
             hasRay = true;
             trigger = rt.triggerDown;
+
+            // Periodic diagnostics so we can see OVRInput state on-device.
+            diagTimer -= Time.unscaledDeltaTime;
+            if (diagTimer <= 0f)
+            {
+                diagTimer = 2f;
+                Debug.Log($"[DFUQuest3] OVR RTouch pos={rt.position} rot={rt.rotation.eulerAngles} trigger={rt.triggerDown} stick={rt.thumbstick} wired={wired}");
+            }
 
             // Fallback to legacy XRNode device (older path).
             if (!hasRay)
