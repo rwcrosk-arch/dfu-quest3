@@ -16,16 +16,38 @@ namespace DFUQuest3
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
         {
-            // Only engage the VR rig when an XR device/loader is actually active
-            // (OpenXR initialized). In flat/non-XR builds this must stay silent so
-            // DFU's normal camera/menu flow is untouched.
-            if (XRSettings.isDeviceActive == false)
-                return;
+            // Always create the setup object; it polls for XR readiness and only
+            // builds the rig once OpenXR is actually active (avoids the race where
+            // XRSettings.isDeviceActive is false at scene load).
             var go = new GameObject("DFUQuest3 VRSceneSetup");
             go.AddComponent<VRSceneSetup>();
         }
 
         void Awake()
+        {
+            // Defer rig construction until XR is active.
+            StartCoroutine(WaitForXR());
+        }
+
+        System.Collections.IEnumerator WaitForXR()
+        {
+            // Poll until an XR device/loader is active (OpenXR initialized).
+            float timeout = 30f;
+            while (!XRSettings.isDeviceActive && timeout > 0f)
+            {
+                timeout -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+            if (!XRSettings.isDeviceActive)
+            {
+                Debug.Log("[DFUQuest3] XR never became active; skipping VR rig (flat build).");
+                Destroy(gameObject);
+                yield break;
+            }
+            BuildRig();
+        }
+
+        void BuildRig()
         {
             // Input System must be active for XRI 3.x actions
 #if ENABLE_INPUT_SYSTEM
