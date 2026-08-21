@@ -32,7 +32,7 @@ namespace DFUQuest3
         {
 #if UNITY_ANDROID
             string r = Resolve();
-            bool need = !Directory.Exists(Path.Combine(r, "Fonts"));
+            bool need = !Directory.Exists(Path.Combine(r, "Fonts")) || !Directory.Exists(Path.Combine(r, "Tables"));
             if (need)
             {
                 try
@@ -54,7 +54,11 @@ namespace DFUQuest3
                             Debug.LogError("[DFUQuest3] Could not extract font " + name + ": " + uwr.error);
                         uwr.Dispose();
                     }
-                    Debug.Log("[DFUQuest3] Extracted StreamingAssets/Fonts to " + r);
+                    // Copy quest tables (StreamingAssets/Tables) — needed for QuestMachine.
+                    CopyDir("Tables", r);
+                    // Copy Text databases (StreamingAssets/Text) — needed for TextManager.
+                    CopyDir("Text", r);
+                    Debug.Log("[DFUQuest3] Extracted StreamingAssets/Fonts+Tables+Text to " + r);
                 }
                 catch (System.Exception e)
                 {
@@ -63,5 +67,30 @@ namespace DFUQuest3
             }
 #endif
         }
+
+#if UNITY_ANDROID
+        static void CopyDir(string dir, string root)
+        {
+            // Enumerate the bundled dir via UnityWebRequest is not possible for a listing,
+            // so we copy known files by probing. For Tables we copy the well-known quest
+            // table filenames that DFU needs at startup.
+            string[] needed = {
+                "Quests-GlobalVars.txt", "Quests-StaticMessages.txt", "Quests-Places.txt",
+                "Quests-Sounds.txt", "Quests-Items.txt", "Quests-Factions.txt",
+                "Quests-Foes.txt", "Quests-Diseases.txt", "Quests-Spells.txt"
+            };
+            string destDir = Path.Combine(root, dir);
+            Directory.CreateDirectory(destDir);
+            foreach (var f in needed)
+            {
+                var uwr = UnityWebRequest.Get(Application.streamingAssetsPath + "/" + dir + "/" + f);
+                uwr.SendWebRequest();
+                while (!uwr.isDone) { }
+                if (uwr.result == UnityWebRequest.Result.Success)
+                    File.WriteAllBytes(Path.Combine(destDir, f), uwr.downloadHandler.data);
+                uwr.Dispose();
+            }
+        }
+#endif
     }
 }

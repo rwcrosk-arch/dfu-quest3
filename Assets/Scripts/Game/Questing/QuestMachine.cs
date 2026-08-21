@@ -123,7 +123,7 @@ namespace DaggerfallWorkshop.Game.Questing
         /// </summary>
         public static string QuestSourceFolder
         {
-            get { return Path.Combine(Application.streamingAssetsPath, questSourceFolderName); }
+            get { return Path.Combine(DFUQuest3.AndroidStreamingAssets.Resolve(), questSourceFolderName); }
         }
 
         /// <summary>
@@ -132,7 +132,7 @@ namespace DaggerfallWorkshop.Game.Questing
         /// </summary>
         public string TablesSourceFolder
         {
-            get { return Path.Combine(Application.streamingAssetsPath, questTablesFolderName); }
+            get { return Path.Combine(DFUQuest3.AndroidStreamingAssets.Resolve(), questTablesFolderName); }
         }
 
         /// <summary>
