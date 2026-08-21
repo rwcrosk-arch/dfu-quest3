@@ -10,7 +10,7 @@
     <uses-feature android:name="oculus.software.handtracking" android:required="false" />
     <uses-permission android:name="com.oculus.permission.HAND_TRACKING" android:required="false" />
     <application>
-        <activity android:name="com.unity3d.player.UnityPlayerActivity"
+        <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
                   android:theme="@style/UnityThemeSelector"
                   android:exported="true"
                   android:launchMode="singleTask"

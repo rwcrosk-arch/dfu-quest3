@@ -36,6 +36,8 @@ public class BuildDFU {
         PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.dfworkshop.dfuquest3");
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29; // Quest 3 baseline
         PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel35;
+        // Meta Quest requires the Game Activity entry point on Unity 6 (OpenXR validation).
+        PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.GameActivity;
         PlayerSettings.colorSpace = ColorSpace.Linear;
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
