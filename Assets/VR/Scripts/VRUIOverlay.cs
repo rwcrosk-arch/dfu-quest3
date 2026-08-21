@@ -143,9 +143,9 @@ namespace DFUQuest3
                 var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
                 if (rightHand.isValid)
                 {
-                    if (rightHand.TryGetFeatureValue(CommonUsages.trigger, out float t)) trigger = t > 0.5f;
-                    if (rightHand.TryGetFeatureValue(CommonUsages.devicePosition, out origin) &&
-                        rightHand.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion r))
+                    if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t)) trigger = t > 0.5f;
+                    if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out origin) &&
+                        rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion r))
                     {
                         dir = r * Vector3.forward;
                         hasRay = true;
