@@ -66,6 +66,12 @@ namespace DFUQuest3
             var input = originGO.AddComponent<VRPlayerInput>();
             input.headTransform = cam.transform;
 
+            // VR UI overlay — renders DFU's IMGUI menu into a world-space quad.
+            var overlayGO = new GameObject("DFU VR UI Overlay");
+            var overlay = overlayGO.AddComponent<VRUIOverlay>();
+            overlay.Init(cam.transform);
+            overlayGO.transform.SetParent(originGO.transform, false);
+
             DontDestroyOnLoad(originGO);
 
             Debug.Log("[DFUQuest3] XR rig instantiated at boot.");

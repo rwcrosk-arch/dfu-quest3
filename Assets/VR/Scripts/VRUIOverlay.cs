@@ -1,0 +1,150 @@
+// DFU Quest3 VR — VR UI overlay bridge.
+// DFU's menu system is OnGUI/IMGUI, invisible in VR. DFU supports rendering its UI
+// to a RenderTexture via DaggerfallUI.CustomRenderTarget. We create that target,
+// display it on a world-space quad in front of the XR camera, and drive
+// CustomMousePosition from the controller so the pointer can hover the menu.
+
+using System;
+using UnityEngine;
+using UnityEngine.XR;
+using DaggerfallWorkshop.Game;
+using DaggerfallWorkshop.Game.UserInterface;
+
+namespace DFUQuest3
+{
+    public class VRUIOverlay : MonoBehaviour
+    {
+        [Header("Tuning")]
+        public float distance = 2.0f;
+        public float width = 1.8f;
+        public float height = 1.35f;
+        public int renderWidth = 1600;
+        public int renderHeight = 1200;
+
+        Transform cameraTransform;
+        GameObject panelGO;
+        UserInterfaceRenderTarget uiTarget;
+        DaggerfallUI dfUI;
+        bool wired;
+        bool lastTrigger;
+        Vector2 lastUv = new Vector2(0.5f, 0.5f);
+
+        public void Init(Transform cam)
+        {
+            cameraTransform = cam;
+            enabled = true;
+        }
+
+        void OnEnable()
+        {
+            BuildPanel();
+            Wire();
+        }
+
+        void Update()
+        {
+            if (!wired) Wire();
+            if (cameraTransform == null || panelGO == null) return;
+
+            // Keep panel floating in front of the head.
+            Vector3 pos = cameraTransform.position + cameraTransform.forward * distance;
+            panelGO.transform.position = pos;
+            panelGO.transform.rotation = Quaternion.LookRotation(pos - cameraTransform.position);
+
+            HandlePointer();
+        }
+
+        void BuildPanel()
+        {
+            if (panelGO != null) return;
+
+            panelGO = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            panelGO.name = "DFU VR UI Panel";
+            panelGO.transform.localScale = new Vector3(width, height, 1f);
+
+            var mat = new Material(Shader.Find("Unlit/Texture"));
+            mat.mainTexture = CreateTargetTexture();
+            var rend = panelGO.GetComponent<Renderer>();
+            rend.sharedMaterial = mat;
+            rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            rend.receiveShadows = false;
+        }
+
+        RenderTexture CreateTargetTexture()
+        {
+            return new RenderTexture(renderWidth, renderHeight, 0, RenderTextureFormat.ARGB32);
+        }
+
+        void Wire()
+        {
+            dfUI = FindFirstObjectByType<DaggerfallUI>();
+            if (dfUI == null) return;
+
+            uiTarget = dfUI.GetComponent<UserInterfaceRenderTarget>();
+            if (uiTarget == null)
+                uiTarget = dfUI.gameObject.AddComponent<UserInterfaceRenderTarget>();
+            uiTarget.CustomWidth = renderWidth;
+            uiTarget.CustomHeight = renderHeight;
+
+            // Force the private targetTexture to our RT.
+            var f = typeof(UserInterfaceRenderTarget).GetField("targetTexture",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (f != null) f.SetValue(uiTarget, CreateTargetTexture());
+
+            // Point the quad's material at DFU's UI render target.
+            var rend = panelGO.GetComponent<Renderer>();
+            rend.sharedMaterial.mainTexture = uiTarget.TargetTexture;
+
+            dfUI.CustomRenderTarget = uiTarget;
+            wired = true;
+            Debug.Log("[DFUQuest3] VR UI overlay wired. CustomRenderTarget set.");
+        }
+
+        void HandlePointer()
+        {
+            // Read right-hand controller for position + trigger.
+            var rightHand = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
+            bool trigger = false;
+            Vector3 origin = Vector3.zero, dir = Vector3.forward;
+            bool hasRay = false;
+
+            if (rightHand.isValid)
+            {
+                if (rightHand.TryGetFeatureValue(CommonUsages.trigger, out float t)) trigger = t > 0.5f;
+                if (rightHand.TryGetFeatureValue(CommonUsages.devicePosition, out origin) &&
+                    rightHand.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion r))
+                {
+                    dir = r * Vector3.forward;
+                    hasRay = true;
+                }
+            }
+
+            if (!hasRay && cameraTransform != null)
+            {
+                origin = cameraTransform.position;
+                dir = cameraTransform.forward;
+            }
+
+            // Raycast to panel -> UV.
+            var plane = new Plane(-panelGO.transform.forward, panelGO.transform.position);
+            if (plane.Raycast(new Ray(origin, dir), out float dist))
+            {
+                Vector3 local = panelGO.transform.InverseTransformPoint(plane.ClosestPointOnPlane(
+                    new Ray(origin, dir).GetPoint(dist)));
+                float u = Mathf.Clamp01(local.x + 0.5f);
+                float v = Mathf.Clamp01(0.5f - local.y);
+                lastUv = new Vector2(u, v);
+            }
+
+            // Drive DFU's cursor to the panel position.
+            if (dfUI != null && wired)
+            {
+                Vector2 screen = new Vector2(lastUv.x * Screen.width, (1f - lastUv.y) * Screen.height);
+                dfUI.CustomMousePosition = screen;
+                if (trigger && !lastTrigger)
+                    Debug.Log("[DFUQuest3] Trigger press at uv=" + lastUv + " screen=" + screen);
+            }
+            lastTrigger = trigger;
+        }
+    }
+}
