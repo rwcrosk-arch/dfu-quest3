@@ -43,6 +43,15 @@ namespace DFUQuest3
 
         bool ReadTrigger()
         {
+            // 0) OVRInput (Meta SDK native input) — may read the real trigger even on OpenXR
+            //    now that the interaction profile is bound and the controller tracks.
+            try
+            {
+                if (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger))
+                    return true;
+            }
+            catch { /* OVRInput may not be initialized */ }
+
             // 1) InputSystem XRController devices.
             foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
             {
