@@ -15,6 +15,16 @@ public class BuildDFU {
         Debug.Log("BUILD_RESULT: " + report.summary.result + " errors=" + report.summary.totalErrors);
     }
     public static void BuildAndroid() {
+        BuildAndroidWithOptions(BuildOptions.None);
+    }
+
+    // Development build — required for the Meta XR Operator API layer (Release strips it),
+    // which is the agent-driven test path (adb forward tcp:8720 → MCP server on device).
+    public static void BuildAndroidDev() {
+        BuildAndroidWithOptions(BuildOptions.Development);
+    }
+
+    static void BuildAndroidWithOptions(BuildOptions opts) {
         var nbt = NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.Android);
         PlayerSettings.SetScriptingBackend(nbt, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -23,13 +33,13 @@ public class BuildDFU {
         PrepAndroidSettings();
         AssetDatabase.SaveAssets();
         Debug.Log("AFTER_PREP arch=" + PlayerSettings.Android.targetArchitectures);
-        var opts = new BuildPlayerOptions {
+        var popts = new BuildPlayerOptions {
             scenes = new[] { "Assets/Scenes/DaggerfallUnityStartup.unity", "Assets/Scenes/DaggerfallUnityGame.unity" },
             locationPathName = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile) + "/dfu-builds/android/DFU.apk",
             target = BuildTarget.Android,
-            options = BuildOptions.None
+            options = opts
         };
-        var report = BuildPipeline.BuildPlayer(opts);
+        var report = BuildPipeline.BuildPlayer(popts);
         Debug.Log("BUILD_RESULT: " + report.summary.result + " errors=" + report.summary.totalErrors);
     }
     public static void PrepAndroidSettings() {
