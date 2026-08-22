@@ -172,7 +172,15 @@ namespace DFUQuest3
                     devList += dd.name + "(" + dd.characteristics + ") ";
                 // Log the ray source/dir and panel hit UV so we can calibrate aim headlessly.
                 var panelStr = (panelGO != null) ? panelGO.transform.position.ToString() : "none";
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr}");
+                // Also read the raw trigger float value from the first controller
+                string trigVals = "";
+                foreach (var dd in diagDevs)
+                {
+                    if ((dd.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
+                        dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tv))
+                        trigVals += dd.name + "=" + tv.ToString("0.00") + " ";
+                }
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | trigVals=[{trigVals}]");
             }
 
             // If no controller pose, fall back to head pointer.
