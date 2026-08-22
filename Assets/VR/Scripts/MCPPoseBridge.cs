@@ -136,15 +136,39 @@ namespace DFUQuest3
         // SSE "data" for a tools/call result: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{poseJson}"}]}}
         void ParseResponse(string data)
         {
-            if (data.Length > 300) Debug.Log("[DFUQuest3] MCP bridge data(big): " + data.Substring(0, 300));
-            else Debug.Log("[DFUQuest3] MCP bridge data: " + data);
             var textStart = data.IndexOf("\"text\":\"");
             if (textStart < 0) return;
             textStart += 8;
-            var textEnd = data.IndexOf("\"", textStart);
-            if (textEnd < 0) return;
-            var poseJson = data.Substring(textStart, textEnd - textStart)
-                .Replace("\\\"", "\"").Replace("\\/", "/");
+            // The text value is JSON-escaped (contains \" and \n). Read until the
+            // UNESCAPED closing quote that ends the string (a quote NOT preceded by \).
+            var sb = new System.Text.StringBuilder();
+            bool esc = false;
+            for (int i = textStart; i < data.Length; i++)
+            {
+                char c = data[i];
+                if (esc)
+                {
+                    // Preserve escaped newline/CR as their 2-char marker (ParsePoseJson
+                    // strips them); drop the backslash only for `\"` and `\\` and `\/`.
+                    if (c == 'n') { sb.Append("\\n"); }
+                    else if (c == 'r') { sb.Append("\\r"); }
+                    else sb.Append(c);
+                    esc = false;
+                }
+                else if (c == '\\')
+                {
+                    esc = true;
+                }
+                else if (c == '"')
+                {
+                    break; // end of the text string
+                }
+                else
+                {
+                    sb.Append(c);
+                }
+            }
+            var poseJson = sb.ToString();
             ParsePoseJson(poseJson);
         }
 
