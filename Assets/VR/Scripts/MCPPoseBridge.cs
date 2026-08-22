@@ -123,6 +123,8 @@ namespace DFUQuest3
         // SSE "data" for a tools/call result: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{poseJson}"}]}}
         void ParseResponse(string data)
         {
+            if (data.Length > 300) Debug.Log("[DFUQuest3] MCP bridge data(big): " + data.Substring(0, 300));
+            else Debug.Log("[DFUQuest3] MCP bridge data: " + data);
             var textStart = data.IndexOf("\"text\":\"");
             if (textStart < 0) return;
             textStart += 8;
