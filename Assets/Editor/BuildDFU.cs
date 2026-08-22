@@ -34,17 +34,9 @@ public class BuildDFU {
     }
     public static void PrepAndroidSettings() {
         PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.dfworkshop.dfuquest3");
-        // Enable the Input System XR backend so OpenXR controller devices surface through
-        // Input System (XRController). Without UNITY_INPUT_SYSTEM_ENABLE_XR the controllers
-        // bind at OpenXR level but never materialize as readable devices.
-        var nbtAndroid = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.Android);
-        var defines = PlayerSettings.GetScriptingDefineSymbols(nbtAndroid);
-        if (!defines.Contains("UNITY_INPUT_SYSTEM_ENABLE_XR"))
-        {
-            defines += ";UNITY_INPUT_SYSTEM_ENABLE_XR";
-            PlayerSettings.SetScriptingDefineSymbols(nbtAndroid, defines);
-            Debug.Log("PREP: added UNITY_INPUT_SYSTEM_ENABLE_XR define");
-        }
+        // NOTE: do NOT add UNITY_INPUT_SYSTEM_ENABLE_XR — it switches OpenXR input routing
+        // to the Input System backend, which doesn't materialize the controllers, and
+        // steals input from legacy InputDevices (the path that DID surface them).
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel32; // Meta Quest requires API 32+
         PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel35;
         // Meta Quest requires Game Activity entry on Unity 6, but UnityPlayerGameActivity
