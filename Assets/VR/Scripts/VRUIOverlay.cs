@@ -31,6 +31,7 @@ namespace DFUQuest3
         bool panelAnchored;
         GameObject reticleGO;
         LineRenderer rayLine;
+        public MCPPoseBridge poseBridge; // real controller pose from on-device MCP server
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -161,7 +162,18 @@ namespace DFUQuest3
             // controller may not materialize to Unity app code on Unity 6). The controller
             // overrides when it surfaces; otherwise the head-gaze fallback below applies.
 
+            // === MCP pose bridge FIRST (the ONLY path that reads real controller pose) ===
+            // Unity 6 + OpenXR reports controller pose as zeros to InputDevices/InputSystem,
+            // but the on-device MCP server reads it correctly. Use that when valid.
+            if (poseBridge != null && poseBridge.controllerValid)
+            {
+                origin = poseBridge.controllerPosition;
+                dir = poseBridge.controllerRotation * Vector3.forward;
+                hasRay = true;
+            }
+
             // Try Input System XRController first (Unity 6 + OpenXR path).
+            if (!hasRay)
             foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
             {
                 var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;

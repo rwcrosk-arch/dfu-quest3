@@ -70,10 +70,15 @@ namespace DFUQuest3
             var setup = originGO.AddComponent<VRRigBootstrap>();
             setup.xrOrigin = origin;
 
+            // MCP pose bridge — reads the REAL controller pose from the on-device MCP
+            // server (Unity 6 + OpenXR reports controller pose as zeros to app code).
+            var mcpBridge = originGO.AddComponent<MCPPoseBridge>();
+
             // VR UI overlay — renders DFU's IMGUI menu into a world-space quad.
             // Uses Camera.main (DFU's camera) as the head transform.
             var overlayGO = new GameObject("DFU VR UI Overlay");
             var overlay = overlayGO.AddComponent<VRUIOverlay>();
+            overlay.poseBridge = mcpBridge;
             overlayGO.transform.SetParent(originGO.transform, false);
 
             DontDestroyOnLoad(originGO);
