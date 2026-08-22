@@ -171,7 +171,8 @@ namespace DFUQuest3
                 foreach (var dd in diagDevs)
                     devList += dd.name + "(" + dd.characteristics + ") ";
                 // Log the ray source/dir and panel hit UV so we can calibrate aim headlessly.
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelGO!=null?panelGO.transform.position.ToString():\"none\"}");
+                var panelStr = (panelGO != null) ? panelGO.transform.position.ToString() : "none";
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr}");
             }
 
             // If no controller pose, fall back to head pointer.
