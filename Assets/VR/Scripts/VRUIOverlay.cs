@@ -175,8 +175,8 @@ namespace DFUQuest3
 
             // === MCP pose bridge FIRST (the ONLY path that reads real controller pose) ===
             // Unity 6 + OpenXR reports controller pose as zeros to InputDevices/InputSystem,
-            // but the on-device MCP server reads it correctly. Use that when valid.
-            if (poseBridge != null && poseBridge.controllerValid)
+            // but the on-device MCP server reads it correctly. Use that when FRESH (not stale).
+            if (poseBridge != null && poseBridge.HasFreshPose)
             {
                 origin = poseBridge.controllerPosition;
                 dir = poseBridge.controllerRotation * Vector3.forward;
@@ -328,7 +328,7 @@ namespace DFUQuest3
                     rayLine.enabled = true;
                 }
             }
-            else if (reticleGO != null && poseBridge != null && poseBridge.controllerValid)
+            else if (reticleGO != null && poseBridge != null && poseBridge.HasFreshPose)
             {
                 // Controller is active but the ray misses the panel — clamp the reticle to
                 // the nearest panel edge so it never vanishes while pointing. Find the

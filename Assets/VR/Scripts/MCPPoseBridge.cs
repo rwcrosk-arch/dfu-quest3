@@ -24,6 +24,18 @@ namespace DFUQuest3
         public Vector3 controllerPosition;
         public Quaternion controllerRotation;
 
+        const float staleTimeout = 0.5f; // if no fresh pose frame, invalidate (fall back to head-gaze)
+        float lastPoseFrame;
+
+        // True only when we have a valid, FRESH controller pose (not a stale frozen one).
+        public bool HasFreshPose
+        {
+            get
+            {
+                return controllerValid && (Time.unscaledTime - lastPoseFrame) < staleTimeout;
+            }
+        }
+
         const int pollIntervalMs = 50;      // 20 Hz pose polling
         const int requestTimeoutMs = 500;
         Thread readThread;
@@ -46,52 +58,62 @@ namespace DFUQuest3
             if (writeThread != null) writeThread.Join(500);
         }
 
-        // Holds the SSE stream open and parses incoming "data:" responses.
+        // Holds the SSE stream open and parses incoming "data:" responses. Auto-reconnects
+        // if the session drops (stale pose freezes the reticle otherwise).
         void ReadThreadMain()
         {
-            try
+            while (running)
             {
-                using (var client = new HttpClient())
+                try
                 {
-                    var resp = client.GetAsync(mcpUrl + "/sse", HttpCompletionOption.ResponseHeadersRead)
-                        .GetAwaiter().GetResult();
-                    resp.EnsureSuccessStatusCode();
-                    using (var stream = resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
-                    using (var reader = new StreamReader(stream, Encoding.UTF8))
+                    using (var client = new HttpClient())
                     {
-                        while (running)
+                        var resp = client.GetAsync(mcpUrl + "/sse", HttpCompletionOption.ResponseHeadersRead)
+                            .GetAwaiter().GetResult();
+                        resp.EnsureSuccessStatusCode();
+                        using (var stream = resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
+                        using (var reader = new StreamReader(stream, Encoding.UTF8))
                         {
-                            string line = reader.ReadLine();
-                            if (line == null) break;
-                            if (line.StartsWith("data: "))
+                            while (running)
                             {
-                                string data = line.Substring(6).Trim();
-                                if (data.StartsWith("/message?session_id="))
+                                string line = reader.ReadLine();
+                                if (line == null) break;
+                                if (line.StartsWith("data: "))
                                 {
-                                    lock (readLock)
+                                    string data = line.Substring(6).Trim();
+                                    if (data.StartsWith("/message?session_id="))
                                     {
-                                        messageEndpoint = mcpUrl + data;
+                                        lock (readLock)
+                                        {
+                                            messageEndpoint = mcpUrl + data;
+                                        }
+                                        Debug.Log("[DFUQuest3] MCP pose bridge endpoint: " + messageEndpoint);
+                                        // Start the write thread once we know the endpoint.
+                                        if (writeThread == null)
+                                        {
+                                            writeThread = new Thread(WriteThreadMain) { IsBackground = true };
+                                            writeThread.Start();
+                                        }
                                     }
-                                    Debug.Log("[DFUQuest3] MCP pose bridge endpoint: " + messageEndpoint);
-                                    // Start the write thread once we know the endpoint.
-                                    if (writeThread == null)
+                                    else
                                     {
-                                        writeThread = new Thread(WriteThreadMain) { IsBackground = true };
-                                        writeThread.Start();
+                                        lastPoseFrame = Time.unscaledTime;
+                                        ParseResponse(data);
                                     }
-                                }
-                                else
-                                {
-                                    ParseResponse(data);
                                 }
                             }
                         }
                     }
                 }
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning("[DFUQuest3] MCP SSE reader ended: " + e.Message);
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("[DFUQuest3] MCP SSE reader ended: " + e.Message);
+                }
+                // Session dropped — invalidate pose and reconnect.
+                lock (readLock) { messageEndpoint = null; }
+                controllerValid = false;
+                if (!running) break;
+                System.Threading.Thread.Sleep(500);
             }
         }
 
