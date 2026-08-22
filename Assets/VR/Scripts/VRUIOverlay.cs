@@ -143,14 +143,14 @@ namespace DFUQuest3
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                var allInput = UnityEngine.InputSystem.InputSystem.devices;
+                var diagDevices = UnityEngine.InputSystem.InputSystem.devices;
                 int xrCount = 0; string trigState = "no-xr";
-                foreach (var dev in allInput)
+                foreach (var d in diagDevices)
                 {
-                    if (dev is UnityEngine.InputSystem.XR.XRController)
+                    if (d is UnityEngine.InputSystem.XR.XRController)
                     {
                         xrCount++;
-                        var tc = dev.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger");
+                        var tc = d.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger");
                         if (tc != null) trigState = tc.ReadValue() > 0.5f ? "trig=1" : "trig=0";
                     }
                 }
