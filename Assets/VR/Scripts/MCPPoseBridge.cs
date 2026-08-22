@@ -174,6 +174,7 @@ namespace DFUQuest3
         {
             // Determine which request this answers: id=1 controller, id=2 head.
             bool isHead = data.Contains("\"id\":2");
+            Debug.Log("[DFUQuest3] MCP bridge rx: " + (data.Length > 120 ? data.Substring(0, 120) : data));
             var textStart = data.IndexOf("\"text\":\"");
             if (textStart < 0) return;
             textStart += 8;
