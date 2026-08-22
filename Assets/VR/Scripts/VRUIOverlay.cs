@@ -244,13 +244,20 @@ namespace DFUQuest3
                 string mcpInfo = (poseBridge != null) ?
                     ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation) :
                     "no-bridge";
-                // Also read the raw trigger float value from the first controller
+                // Live trigger read — log the raw float value from every controller device
+                // so we can see the exact moment the trigger is pressed.
                 string trigVals = "";
                 foreach (var dd in diagDevs)
                 {
-                    if ((dd.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
-                        dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tv))
-                        trigVals += dd.name + "=" + tv.ToString("0.00") + " ";
+                    if ((dd.characteristics & InputDeviceCharacteristics.Controller) != 0)
+                    {
+                        if (dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tv))
+                            trigVals += dd.name + "=" + tv.ToString("0.00") + " ";
+                        if (dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb))
+                            trigVals += "btn=" + tb + " ";
+                        if (dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out bool sb))
+                            trigVals += "B=" + sb + " ";
+                    }
                 }
                 // Enumerate ALL InputSystem devices to see what's materialized
                 string isDev = "";
