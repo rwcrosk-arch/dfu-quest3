@@ -52,15 +52,15 @@ namespace DFUQuest3
             // Drive DFU's camera from the headset (TrackedPoseDriver) instead of
             // creating a second camera. This keeps Camera.main == DFU's camera so
             // PlayerMouseLook / PlayerActivate / GameManager lookups all still work.
-            var tpd = dfuCamera.GetComponent<TrackedPoseDriver>();
+            var tpd = dfuCamera.GetComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
             if (tpd == null)
-                tpd = dfuCamera.gameObject.AddComponent<TrackedPoseDriver>();
+                tpd = dfuCamera.gameObject.AddComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
             tpd.positionInput = new InputActionProperty(
                 new InputAction("Position", InputActionType.Value, "<XRHMD>/centerEyePosition"));
             tpd.rotationInput = new InputActionProperty(
                 new InputAction("Rotation", InputActionType.Value, "<XRHMD>/centerEyeRotation"));
-            tpd.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
-            tpd.updateType = TrackedPoseDriver.UpdateType.BeforeRender;
+            tpd.trackingType = UnityEngine.InputSystem.XR.TrackedPoseDriver.TrackingType.RotationAndPosition;
+            tpd.updateType = UnityEngine.InputSystem.XR.TrackedPoseDriver.UpdateType.BeforeRender;
 
             // Keep DFU's mouse-look component but neutralize it so it doesn't fight
             // the XR pose (it would override Camera rotation from mouse input).
