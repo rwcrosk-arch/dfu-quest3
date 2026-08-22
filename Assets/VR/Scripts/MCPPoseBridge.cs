@@ -101,7 +101,8 @@ namespace DFUQuest3
             {
                 client.Timeout = TimeSpan.FromMilliseconds(requestTimeoutMs);
                 // MCP requires an initialize handshake before tools/call.
-                SendRequest(client, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"dfu-quest3\",\"version\":\"1.0\"}}}");
+                // Use a protocol version the server supports (verified: 2025-06-18 accepted).
+                SendRequest(client, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"dfu-quest3\",\"version\":\"1.0\"}}}");
                 Thread.Sleep(100);
                 SendRequest(client, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"notifications/initialized\",\"params\":{}}");
 
