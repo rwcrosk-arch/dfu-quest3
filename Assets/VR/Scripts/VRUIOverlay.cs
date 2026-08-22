@@ -313,8 +313,8 @@ namespace DFUQuest3
                 // Controller is active but the ray misses the panel — clamp the reticle to
                 // the nearest panel edge so it never vanishes while pointing. Find the
                 // intersection of the ray direction with the panel plane, projected.
-                var plane = new Plane(-panelGO.transform.forward, panelGO.transform.position);
-                if (plane.Raycast(new Ray(origin, dir), out float pd))
+                var clampPlane = new Plane(-panelGO.transform.forward, panelGO.transform.position);
+                if (clampPlane.Raycast(new Ray(origin, dir), out float pd))
                 {
                     Vector3 hit = new Ray(origin, dir).GetPoint(pd);
                     // Clamp hit to the panel's local bounds.
