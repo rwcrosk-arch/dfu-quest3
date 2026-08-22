@@ -205,7 +205,11 @@ namespace DFUQuest3
                 {
                     if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
                     {
-                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t) && t > 0.5f) trigger = true;
+                        // float trigger OR boolean triggerButton may surface; check both.
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tf) && tf > 0.5f)
+                            trigger = true;
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb) && tb)
+                            trigger = true;
                         if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 cp) &&
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
