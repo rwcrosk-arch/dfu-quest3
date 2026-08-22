@@ -14,6 +14,10 @@ namespace DFUQuest3.EditorTools
     public static class XRSetup
     {
         const string AssetPath = "Assets/XR/XRGeneralSettingsPerBuildTarget.asset";
+        // XR Management expects the per-build-target settings registered here so the
+        // build processor / loaders can find them. Missing this registration = flaky
+        // loader inclusion (controllers not created). Ported from old project's ConfigureXR.
+        const string k_SettingsKey = "com.unity.xr.management.loader_settings";
 
         public static void Apply()
         {
@@ -21,6 +25,11 @@ namespace DFUQuest3.EditorTools
             var containerType = edAsm.GetType("UnityEditor.XR.Management.XRGeneralSettingsPerBuildTarget");
             var asset = AssetDatabase.LoadAssetAtPath(AssetPath, containerType);
             if (asset == null || containerType == null) { Debug.LogError("XR_SETUP: container/asset not found"); return; }
+
+            // CRITICAL: register in EditorBuildSettings so the XR build processor finds it.
+            // (No idempotency check — AddConfigObject is safe to call repeatedly.)
+            EditorBuildSettings.AddConfigObject(k_SettingsKey, (UnityEngine.Object)asset, true);
+            Debug.Log("XR_SETUP: registered settings in EditorBuildSettings");
 
             var openXrType = Type.GetType("UnityEngine.XR.OpenXR.OpenXRLoader, Unity.XR.OpenXR");
             if (openXrType == null) { Debug.LogError("XR_SETUP: OpenXRLoader type not found"); return; }
