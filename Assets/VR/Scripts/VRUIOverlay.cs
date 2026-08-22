@@ -30,6 +30,10 @@ namespace DFUQuest3
         bool lastTrigger;
         bool panelAnchored;
         GameObject reticleGO;
+        LineRenderer rayLine;
+        Vector3 lastGazePos = Vector3.zero;
+        Quaternion lastGazeRot = Quaternion.identity;
+        bool gazeValid;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -111,6 +115,18 @@ namespace DFUQuest3
             reticleGO.GetComponent<Renderer>().sharedMaterial = mat;
             reticleGO.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             reticleGO.GetComponent<Renderer>().receiveShadows = false;
+
+            // Visible ray from the head to the reticle (so the raycast is obvious).
+            var rayGO = new GameObject("DFU VR Ray");
+            rayLine = rayGO.AddComponent<LineRenderer>();
+            rayLine.positionCount = 2;
+            rayLine.startWidth = 0.004f;
+            rayLine.endWidth = 0.001f;
+            rayLine.startColor = new Color(1f, 0.5f, 0f, 0.9f);
+            rayLine.endColor = new Color(1f, 1f, 0.3f, 0.9f);
+            rayLine.material = new Material(Shader.Find("Unlit/Color"));
+            rayLine.material.color = Color.white;
+            rayLine.useWorldSpace = true;
         }
 
         void Wire()
@@ -220,23 +236,31 @@ namespace DFUQuest3
             }
 
             // If no controller ray, use head-gaze from the OpenXR head-tracking device
-            // (reliable — the head device works via legacy, unlike controllers). Reading
-            // Camera.main can be stuck if the TrackedPoseDriver isn't driving it.
+            // (reliable — the head device works via legacy, unlike controllers). Keep the
+            // last-known pose so brief tracking dropouts don't freeze/lock the reticle.
             if (!hasRay)
             {
                 var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
                 InputDevices.GetDevices(hDevices);
                 foreach (var d in hDevices)
                 {
-                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
-                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0)
                     {
-                        origin = hp;
-                        dir = hr * Vector3.forward;
-                        hasRay = true;
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                        {
+                            lastGazePos = hp;
+                            lastGazeRot = hr;
+                            gazeValid = true;
+                        }
                         break;
                     }
+                }
+                if (gazeValid)
+                {
+                    origin = lastGazePos;
+                    dir = lastGazeRot * Vector3.forward;
+                    hasRay = true;
                 }
             }
 
@@ -264,10 +288,18 @@ namespace DFUQuest3
                     reticleGO.transform.rotation = panelGO.transform.rotation;
                     reticleGO.SetActive(true);
                 }
+                // Draw the visible ray from head to the hit point.
+                if (rayLine != null)
+                {
+                    rayLine.SetPosition(0, origin);
+                    rayLine.SetPosition(1, new Ray(origin, dir).GetPoint(dist));
+                    rayLine.enabled = true;
+                }
             }
             else if (reticleGO != null)
             {
                 reticleGO.SetActive(false);
+                if (rayLine != null) rayLine.enabled = false;
             }
 
             // Drive DFU's cursor to the panel position.
