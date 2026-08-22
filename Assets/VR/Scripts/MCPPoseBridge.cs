@@ -150,9 +150,10 @@ namespace DFUQuest3
 
         void ParsePoseJson(string poseJson)
         {
+            // Strip the escaped newlines Unity's StringContent may carry.
+            poseJson = poseJson.Replace("\\n", "").Replace("\\r", "");
             var posStart = poseJson.IndexOf("\"position\":[");
             var oriStart = poseJson.IndexOf("\"orientation\":[");
-            var activeIdx = poseJson.IndexOf("\"is_active\":");
             if (posStart < 0 || oriStart < 0) return;
 
             posStart += 12;
@@ -166,20 +167,16 @@ namespace DFUQuest3
             {
                 float[] pos = new float[3], rot = new float[4];
                 for (int i = 0; i < 3 && i < posStr.Length; i++)
-                    float.TryParse(posStr[i], System.Globalization.NumberStyles.Float,
+                    float.TryParse(posStr[i].Trim(), System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out pos[i]);
                 for (int i = 0; i < 4 && i < oriStr.Length; i++)
-                    float.TryParse(oriStr[i], System.Globalization.NumberStyles.Float,
+                    float.TryParse(oriStr[i].Trim(), System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out rot[i]);
 
                 controllerPosition = new Vector3(pos[0], pos[1], pos[2]);
                 controllerRotation = new Quaternion(rot[0], rot[1], rot[2], rot[3]);
-                controllerValid = true;
-                if (activeIdx >= 0)
-                {
-                    var actStr = poseJson.Substring(activeIdx + 12, 1);
-                    controllerValid = actStr == "1";
-                }
+                // Consider it valid if the position is non-zero (a real tracked pose).
+                controllerValid = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2] > 0.0001f;
             }
         }
     }
