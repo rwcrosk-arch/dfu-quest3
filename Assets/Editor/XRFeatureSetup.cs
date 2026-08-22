@@ -40,35 +40,24 @@ namespace DFUQuest3.EditorTools
                 }
                 if (f == null) continue;
                 string name = f.GetType().Name;
-                // Enable base + Plus/Pro interaction profiles AND the Meta/Oculus Quest native
-                // features. The native features provide the Oculus Touch system extension that
-                // surfaces the controllers (proven: they appeared only when native features were
-                // on). CMake 3.22.1 is now installed so the native extensions build.
-                if (name.Contains("Detached"))
+                // Buildable profile config: enable base+Plus/Pro interaction profiles.
+                // Native Meta/Oculus Quest features and Detached variants are kept OFF
+                // (native features fail OpenXR build validation "native extension not found").
+                if (name.Contains("Detached") || name.Contains("MetaQuestFeature") ||
+                    name.Contains("OculusQuestFeature"))
                 {
-                    // Detached profiles bind unsupported paths — keep them off.
                     if (f.enabled) { f.enabled = false; Debug.Log("[XRFEATURE] DISABLED " + name); }
                     continue;
                 }
                 if (name.Contains("OculusTouchControllerProfile") ||
                     name.Contains("MetaQuestTouchPlusControllerProfile") ||
-                    name.Contains("MetaQuestTouchProControllerProfile") ||
-                    name.Contains("MetaQuestFeature") ||
-                    name.Contains("OculusQuestFeature"))
+                    name.Contains("MetaQuestTouchProControllerProfile"))
                 {
                     if (!f.enabled)
                     {
                         f.enabled = true;
                         enabled++;
                         Debug.Log("[XRFEATURE] Enabled " + name);
-                    }
-                    else
-                    {
-                        Debug.Log("[XRFEATURE] Already enabled " + name);
-                    }
-                    if (name.Contains("MetaQuestFeature"))
-                    {
-                        EnableQuestDevice(f);
                     }
                 }
             }
