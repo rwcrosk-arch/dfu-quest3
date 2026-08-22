@@ -24,26 +24,6 @@ namespace DFUQuest3
         public Vector3 controllerPosition;
         public Quaternion controllerRotation;
 
-        public bool headValid;
-        public Vector3 headPosition;
-        public Quaternion headRotation;
-
-        const float staleTimeout = 0.5f; // if no fresh pose frame, invalidate (fall back to head-gaze)
-        float lastPoseFrame;
-
-        // Thread-safe monotonic clock (Time.unscaledTime is main-thread-only and would throw
-        // from the background SSE reader thread).
-        static float NowSeconds { get { return System.Environment.TickCount / 1000f; } }
-
-        // True only when we have a valid, FRESH controller pose (not a stale frozen one).
-        public bool HasFreshPose
-        {
-            get
-            {
-                return controllerValid && (NowSeconds - lastPoseFrame) < staleTimeout;
-            }
-        }
-
         const int pollIntervalMs = 50;      // 20 Hz pose polling
         const int requestTimeoutMs = 500;
         Thread readThread;
@@ -66,62 +46,52 @@ namespace DFUQuest3
             if (writeThread != null) writeThread.Join(500);
         }
 
-        // Holds the SSE stream open and parses incoming "data:" responses. Auto-reconnects
-        // if the session drops (stale pose freezes the reticle otherwise).
+        // Holds the SSE stream open and parses incoming "data:" responses.
         void ReadThreadMain()
         {
-            while (running)
+            try
             {
-                try
+                using (var client = new HttpClient())
                 {
-                    using (var client = new HttpClient())
+                    var resp = client.GetAsync(mcpUrl + "/sse", HttpCompletionOption.ResponseHeadersRead)
+                        .GetAwaiter().GetResult();
+                    resp.EnsureSuccessStatusCode();
+                    using (var stream = resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
+                    using (var reader = new StreamReader(stream, Encoding.UTF8))
                     {
-                        var resp = client.GetAsync(mcpUrl + "/sse", HttpCompletionOption.ResponseHeadersRead)
-                            .GetAwaiter().GetResult();
-                        resp.EnsureSuccessStatusCode();
-                        using (var stream = resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult())
-                        using (var reader = new StreamReader(stream, Encoding.UTF8))
+                        while (running)
                         {
-                            while (running)
+                            string line = reader.ReadLine();
+                            if (line == null) break;
+                            if (line.StartsWith("data: "))
                             {
-                                string line = reader.ReadLine();
-                                if (line == null) break;
-                                if (line.StartsWith("data: "))
+                                string data = line.Substring(6).Trim();
+                                if (data.StartsWith("/message?session_id="))
                                 {
-                                    string data = line.Substring(6).Trim();
-                                    if (data.StartsWith("/message?session_id="))
+                                    lock (readLock)
                                     {
-                                        lock (readLock)
-                                        {
-                                            messageEndpoint = mcpUrl + data;
-                                        }
-                                        Debug.Log("[DFUQuest3] MCP pose bridge endpoint: " + messageEndpoint);
-                                        // Start the write thread once we know the endpoint.
-                                        if (writeThread == null)
-                                        {
-                                            writeThread = new Thread(WriteThreadMain) { IsBackground = true };
-                                            writeThread.Start();
-                                        }
+                                        messageEndpoint = mcpUrl + data;
                                     }
-                                    else
+                                    Debug.Log("[DFUQuest3] MCP pose bridge endpoint: " + messageEndpoint);
+                                    // Start the write thread once we know the endpoint.
+                                    if (writeThread == null)
                                     {
-                                        lastPoseFrame = NowSeconds;
-                                        ParseResponse(data);
+                                        writeThread = new Thread(WriteThreadMain) { IsBackground = true };
+                                        writeThread.Start();
                                     }
+                                }
+                                else
+                                {
+                                    ParseResponse(data);
                                 }
                             }
                         }
                     }
                 }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning("[DFUQuest3] MCP SSE reader ended: " + e.Message);
-                }
-                // Session dropped — invalidate pose and reconnect.
-                lock (readLock) { messageEndpoint = null; }
-                controllerValid = false;
-                if (!running) break;
-                System.Threading.Thread.Sleep(500);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[DFUQuest3] MCP SSE reader ended: " + e.Message);
             }
         }
 
@@ -148,10 +118,6 @@ namespace DFUQuest3
                         // follows where the controller aims. Grip forward points sideways.
                         var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"right\",\"pose_type\":\"aim\"}}}";
                         SendRequest(client, json);
-                        // Also poll the head pose (Unity 6 + OpenXR reports head pose as zeros
-                        // to app code too — the MCP server reads it correctly).
-                        var hjson = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_head_pose\",\"arguments\":{}}}";
-                        SendRequest(client, hjson);
                     }
                     Thread.Sleep(pollIntervalMs);
                 }
@@ -172,9 +138,6 @@ namespace DFUQuest3
         // SSE "data" for a tools/call result: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{poseJson}"}]}}
         void ParseResponse(string data)
         {
-            // Determine which request this answers: id=1 controller, id=2 head.
-            bool isHead = data.Contains("\"id\":2");
-            Debug.Log("[DFUQuest3] MCP bridge rx: " + (data.Length > 120 ? data.Substring(0, 120) : data));
             var textStart = data.IndexOf("\"text\":\"");
             if (textStart < 0) return;
             textStart += 8;
@@ -208,64 +171,16 @@ namespace DFUQuest3
                 }
             }
             var poseJson = sb.ToString();
-            if (isHead) ParseHeadJson(poseJson);
-            else ParsePoseJson(poseJson);
-        }
-
-        // Head pose response: {"pose":{"position":[x,y,z],"orientation":[x,y,z,w]}, "flags":{...}}
-        // No is_active — the head is always "active" when the session is running.
-        void ParseHeadJson(string poseJson)
-        {
-            poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
-            var posStart = poseJson.IndexOf("\"position\":[");
-            var oriStart = poseJson.IndexOf("\"orientation\":[");
-            if (posStart < 0 || oriStart < 0) return;
-            posStart += 12;
-            var posEnd = poseJson.IndexOf("]", posStart);
-            var posStr = poseJson.Substring(posStart, posEnd - posStart).Split(',');
-            oriStart += 15;
-            var oriEnd = poseJson.IndexOf("]", oriStart);
-            var oriStr = poseJson.Substring(oriStart, oriEnd - oriStart).Split(',');
-            if (posStr.Length >= 3 && oriStr.Length >= 4)
-            {
-                float[] pos = new float[3], rot = new float[4];
-                for (int i = 0; i < 3 && i < posStr.Length; i++)
-                    float.TryParse(posStr[i].Trim(), System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out pos[i]);
-                for (int i = 0; i < 4 && i < oriStr.Length; i++)
-                    float.TryParse(oriStr[i].Trim(), System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out rot[i]);
-                // OpenXR→Unity: negate pos Z, negate quat X/Y.
-                headPosition = new Vector3(pos[0], pos[1], -pos[2]);
-                headRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
-                headValid = true;
-            }
+            ParsePoseJson(poseJson);
         }
 
         void ParsePoseJson(string poseJson)
         {
+            // Strip the escaped newlines Unity's StringContent may carry, and whitespace.
             poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
             var posStart = poseJson.IndexOf("\"position\":[");
             var oriStart = poseJson.IndexOf("\"orientation\":[");
-            var activeIdx = poseJson.IndexOf("\"is_active\":");
-            var trackedIdx = poseJson.IndexOf("\"position_tracked\":");
             if (posStart < 0 || oriStart < 0) return;
-
-            // CRITICAL: only treat as valid if the controller is ACTIVELY TRACKED.
-            // The MCP server returns a (possibly frozen) pose even when is_active=0 and
-            // position_tracked=false — trusting it freezes the ray on a dead pose.
-            bool isActive = false, positionTracked = false;
-            if (activeIdx >= 0)
-            {
-                // value after "is_active": -> 0 or 1
-                int v = activeIdx + 12;
-                isActive = v < poseJson.Length && poseJson[v] == '1';
-            }
-            if (trackedIdx >= 0)
-            {
-                int v = trackedIdx + 19;
-                positionTracked = v < poseJson.Length && poseJson[v] == 't'; // "true" or "false"
-            }
 
             posStart += 12;
             var posEnd = poseJson.IndexOf("]", posStart);
@@ -288,8 +203,8 @@ namespace DFUQuest3
                 //   position Z negate; quaternion X negate, Y negate, Z/W same.
                 controllerPosition = new Vector3(pos[0], pos[1], -pos[2]);
                 controllerRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
-                // Valid ONLY when actively tracked (is_active AND position_tracked).
-                controllerValid = isActive && positionTracked;
+                // Consider it valid if the position is non-zero (a real tracked pose).
+                controllerValid = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2] > 0.0001f;
             }
         }
     }

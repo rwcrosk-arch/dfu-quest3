@@ -32,7 +32,6 @@ namespace DFUQuest3
         GameObject reticleGO;
         LineRenderer rayLine;
         public MCPPoseBridge poseBridge; // real controller pose from on-device MCP server
-        public bool useControllerPose = false; // OFF: head-gaze only (MCP controller pose freezes ray in-game)
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -163,25 +162,18 @@ namespace DFUQuest3
             // controller may not materialize to Unity app code on Unity 6). The controller
             // overrides when it surfaces; otherwise the head-gaze fallback below applies.
 
-            // === ALWAYS read the trigger from InputSystem XR controllers ===
-            // The InputSystem creates MetaQuestTouchPlusControllerOpenXR devices; read the
-            // trigger here regardless of which pose source we use for the ray.
-            foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+            // === MCP pose bridge FIRST (the ONLY path that reads real controller pose) ===
+            // Unity 6 + OpenXR reports controller pose as zeros to InputDevices/InputSystem,
+            // but the on-device MCP server reads it correctly. Use that when valid.
+            if (poseBridge != null && poseBridge.controllerValid)
             {
-                var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
-                if (xrCtrl == null) continue;
-                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null && tc.ReadValue() > 0.5f)
-                    trigger = true;
+                origin = poseBridge.controllerPosition;
+                dir = poseBridge.controllerRotation * Vector3.forward;
+                hasRay = true;
             }
 
-            // === MCP pose bridge DISABLED for the ray (change of pace) ===
-            // The MCP controller pose freezes the ray in-game (it reports a frozen pose even
-            // when the controller is resting). Head-gaze from the MCP head pose is reliable
-            // and always tracks. Use head-gaze as the ONLY pointer source for now.
-            // (Controller pose path kept but gated off — see useControllerPose flag.)
-
-            // Try Input System XRController for the POSE (Unity 6 + OpenXR path).
-            if (!hasRay && useControllerPose)
+            // Try Input System XRController first (Unity 6 + OpenXR path).
+            if (!hasRay)
             foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
             {
                 var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
@@ -196,6 +188,8 @@ namespace DFUQuest3
                 // lock the ray at origin. Sanity-check before overriding head-gaze.
                 if (cp.sqrMagnitude < 0.001f || float.IsNaN(cr.x) || float.IsNaN(cr.y) || float.IsNaN(cr.z) || float.IsNaN(cr.w))
                     continue;
+                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
+                    trigger = tc.ReadValue() > 0.5f;
                 origin = cp;
                 dir = cr * Vector3.forward;
                 hasRay = true;
@@ -203,7 +197,7 @@ namespace DFUQuest3
             }
 
             // Fallback: legacy InputDevices (same zero-pose guard).
-            if (!hasRay && useControllerPose)
+            if (!hasRay)
             {
                 var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
                 InputDevices.GetDevices(devices);
@@ -211,11 +205,7 @@ namespace DFUQuest3
                 {
                     if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
                     {
-                        // float trigger OR boolean triggerButton may surface; check both.
-                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tf) && tf > 0.5f)
-                            trigger = true;
-                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb) && tb)
-                            trigger = true;
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t) && t > 0.5f) trigger = true;
                         if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 cp) &&
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
@@ -245,22 +235,15 @@ namespace DFUQuest3
                 // Log the ray source/dir and panel hit UV so we can calibrate aim headlessly.
                 var panelStr = (panelGO != null) ? panelGO.transform.position.ToString() : "none";
                 string mcpInfo = (poseBridge != null) ?
-                    ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation + " headValid=" + poseBridge.headValid + " headPos=" + poseBridge.headPosition) :
+                    ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation) :
                     "no-bridge";
-                // Live trigger read — log the raw float value from every controller device
-                // so we can see the exact moment the trigger is pressed.
+                // Also read the raw trigger float value from the first controller
                 string trigVals = "";
                 foreach (var dd in diagDevs)
                 {
-                    if ((dd.characteristics & InputDeviceCharacteristics.Controller) != 0)
-                    {
-                        if (dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tv))
-                            trigVals += dd.name + "=" + tv.ToString("0.00") + " ";
-                        if (dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb))
-                            trigVals += "btn=" + tb + " ";
-                        if (dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out bool sb))
-                            trigVals += "B=" + sb + " ";
-                    }
+                    if ((dd.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
+                        dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tv))
+                        trigVals += dd.name + "=" + tv.ToString("0.00") + " ";
                 }
                 // Enumerate ALL InputSystem devices to see what's materialized
                 string isDev = "";
@@ -270,41 +253,25 @@ namespace DFUQuest3
                     isCount++;
                     isDev += dev.name + "[" + dev.layout + "] ";
                 }
-                string camPos = cameraTransform != null ? cameraTransform.position.ToString() : "none";
-                string camFwd = cameraTransform != null ? cameraTransform.forward.ToString() : "none";
-                // Enumerate ALL cameras to find the live XR rendering camera.
-                string allCams = "";
-                foreach (var c in Camera.allCameras)
-                    allCams += c.name + "[" + c.transform.position + " fwd=" + c.transform.forward + "] ";
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev} | camPos={camPos} camFwd={camFwd} | ALLCAMS: {allCams}");
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
-            // If no controller ray, use head-gaze. Unity 6 + OpenXR reports the head pose as
-            // ZEROS to app code (same backend issue as the controller), so read the head pose
-            // from the MCP server (which reads it correctly). Fall back to Camera.main.
+            // If no controller ray, use head-gaze from the OpenXR head-tracking device
+            // (reliable — the head device works via legacy, unlike controllers).
             if (!hasRay)
             {
-                if (poseBridge != null && poseBridge.headValid)
+                var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(hDevices);
+                foreach (var d in hDevices)
                 {
-                    origin = poseBridge.headPosition;
-                    dir = poseBridge.headRotation * Vector3.forward;
-                    hasRay = true;
-                }
-                else
-                {
-                    var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-                    InputDevices.GetDevices(hDevices);
-                    foreach (var d in hDevices)
+                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
                     {
-                        if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
-                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
-                        {
-                            origin = hp;
-                            dir = hr * Vector3.forward;
-                            hasRay = true;
-                            break;
-                        }
+                        origin = hp;
+                        dir = hr * Vector3.forward;
+                        hasRay = true;
+                        break;
                     }
                 }
             }
@@ -341,7 +308,7 @@ namespace DFUQuest3
                     rayLine.enabled = true;
                 }
             }
-            else if (reticleGO != null && useControllerPose && poseBridge != null && poseBridge.HasFreshPose)
+            else if (reticleGO != null && poseBridge != null && poseBridge.controllerValid)
             {
                 // Controller is active but the ray misses the panel — clamp the reticle to
                 // the nearest panel edge so it never vanishes while pointing. Find the
@@ -383,9 +350,9 @@ namespace DFUQuest3
             {
                 Vector2 screen = new Vector2(lastUv.x * Screen.width, (1f - lastUv.y) * Screen.height);
                 dfUI.CustomMousePosition = screen;
-                // Proper trigger click: rising-edge of the controller trigger.
                 if (trigger && !lastTrigger)
                 {
+                    // Synthesize a left-click so the menu responds to the trigger.
                     var im = DaggerfallWorkshop.Game.InputManager.Instance;
                     if (im != null) im.vrClickQueued = true;
                     Debug.Log("[DFUQuest3] Trigger press at uv=" + lastUv + " screen=" + screen);
