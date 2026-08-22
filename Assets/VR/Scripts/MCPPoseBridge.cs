@@ -24,6 +24,10 @@ namespace DFUQuest3
         public Vector3 controllerPosition;
         public Quaternion controllerRotation;
 
+        public bool headValid;
+        public Vector3 headPosition;
+        public Quaternion headRotation;
+
         const float staleTimeout = 0.5f; // if no fresh pose frame, invalidate (fall back to head-gaze)
         float lastPoseFrame;
 
@@ -140,6 +144,10 @@ namespace DFUQuest3
                         // follows where the controller aims. Grip forward points sideways.
                         var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"right\",\"pose_type\":\"aim\"}}}";
                         SendRequest(client, json);
+                        // Also poll the head pose (Unity 6 + OpenXR reports head pose as zeros
+                        // to app code too — the MCP server reads it correctly).
+                        var hjson = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_head_pose\",\"arguments\":{}}}";
+                        SendRequest(client, hjson);
                     }
                     Thread.Sleep(pollIntervalMs);
                 }
@@ -160,6 +168,8 @@ namespace DFUQuest3
         // SSE "data" for a tools/call result: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{poseJson}"}]}}
         void ParseResponse(string data)
         {
+            // Determine which request this answers: id=1 controller, id=2 head.
+            bool isHead = data.Contains("\"id\":2");
             var textStart = data.IndexOf("\"text\":\"");
             if (textStart < 0) return;
             textStart += 8;
@@ -193,12 +203,42 @@ namespace DFUQuest3
                 }
             }
             var poseJson = sb.ToString();
-            ParsePoseJson(poseJson);
+            if (isHead) ParseHeadJson(poseJson);
+            else ParsePoseJson(poseJson);
+        }
+
+        // Head pose response: {"pose":{"position":[x,y,z],"orientation":[x,y,z,w]}, "flags":{...}}
+        // No is_active — the head is always "active" when the session is running.
+        void ParseHeadJson(string poseJson)
+        {
+            poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
+            var posStart = poseJson.IndexOf("\"position\":[");
+            var oriStart = poseJson.IndexOf("\"orientation\":[");
+            if (posStart < 0 || oriStart < 0) return;
+            posStart += 12;
+            var posEnd = poseJson.IndexOf("]", posStart);
+            var posStr = poseJson.Substring(posStart, posEnd - posStart).Split(',');
+            oriStart += 15;
+            var oriEnd = poseJson.IndexOf("]", oriStart);
+            var oriStr = poseJson.Substring(oriStart, oriEnd - oriStart).Split(',');
+            if (posStr.Length >= 3 && oriStr.Length >= 4)
+            {
+                float[] pos = new float[3], rot = new float[4];
+                for (int i = 0; i < 3 && i < posStr.Length; i++)
+                    float.TryParse(posStr[i].Trim(), System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out pos[i]);
+                for (int i = 0; i < 4 && i < oriStr.Length; i++)
+                    float.TryParse(oriStr[i].Trim(), System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out rot[i]);
+                // OpenXR→Unity: negate pos Z, negate quat X/Y.
+                headPosition = new Vector3(pos[0], pos[1], -pos[2]);
+                headRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
+                headValid = true;
+            }
         }
 
         void ParsePoseJson(string poseJson)
         {
-            // Strip the escaped newlines Unity's StringContent may carry, and whitespace.
             poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
             var posStart = poseJson.IndexOf("\"position\":[");
             var oriStart = poseJson.IndexOf("\"orientation\":[");

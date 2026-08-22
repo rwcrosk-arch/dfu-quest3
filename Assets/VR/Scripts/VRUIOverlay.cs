@@ -276,22 +276,32 @@ namespace DFUQuest3
                 Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
-            // If no controller ray, use head-gaze from the OpenXR head-tracking device
-            // (reliable — the head device works via legacy, unlike controllers).
+            // If no controller ray, use head-gaze. Unity 6 + OpenXR reports the head pose as
+            // ZEROS to app code (same backend issue as the controller), so read the head pose
+            // from the MCP server (which reads it correctly). Fall back to Camera.main.
             if (!hasRay)
             {
-                var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-                InputDevices.GetDevices(hDevices);
-                foreach (var d in hDevices)
+                if (poseBridge != null && poseBridge.headValid)
                 {
-                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
-                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                    origin = poseBridge.headPosition;
+                    dir = poseBridge.headRotation * Vector3.forward;
+                    hasRay = true;
+                }
+                else
+                {
+                    var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                    InputDevices.GetDevices(hDevices);
+                    foreach (var d in hDevices)
                     {
-                        origin = hp;
-                        dir = hr * Vector3.forward;
-                        hasRay = true;
-                        break;
+                        if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
+                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                        {
+                            origin = hp;
+                            dir = hr * Vector3.forward;
+                            hasRay = true;
+                            break;
+                        }
                     }
                 }
             }
