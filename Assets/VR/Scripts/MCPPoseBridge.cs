@@ -159,16 +159,20 @@ namespace DFUQuest3
 
             if (posStr.Length >= 3 && oriStr.Length >= 4)
             {
-                float.TryParse(posStr[0], System.Globalization.CultureInfo.InvariantCulture, out float px);
-                float.TryParse(posStr[1], System.Globalization.CultureInfo.InvariantCulture, out float py);
-                float.TryParse(posStr[2], System.Globalization.CultureInfo.InvariantCulture, out float pz);
-                float.TryParse(oriStr[0], System.Globalization.CultureInfo.InvariantCulture, out float qx);
-                float.TryParse(oriStr[1], System.Globalization.CultureInfo.InvariantCulture, out float qy);
-                float.TryParse(oriStr[2], System.Globalization.CultureInfo.InvariantCulture, out float qz);
-                float.TryParse(oriStr[3], System.Globalization.CultureInfo.InvariantCulture, out float qw);
+                float[] pos = new float[3], rot = new float[4];
+                for (int i = 0; i < 3 && i < posStr.Length; i++)
+                {
+                    float.TryParse(posStr[i], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out pos[i]);
+                }
+                for (int i = 0; i < 4 && i < oriStr.Length; i++)
+                {
+                    float.TryParse(oriStr[i], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out rot[i]);
+                }
 
-                controllerPosition = new Vector3(px, py, pz);
-                controllerRotation = new Quaternion(qx, qy, qz, qw);
+                controllerPosition = new Vector3(pos[0], pos[1], pos[2]);
+                controllerRotation = new Quaternion(rot[0], rot[1], rot[2], rot[3]);
                 controllerValid = true;
                 if (activeIdx >= 0)
                 {
