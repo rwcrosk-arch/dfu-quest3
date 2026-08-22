@@ -234,6 +234,9 @@ namespace DFUQuest3
                     devList += dd.name + "(" + dd.characteristics + ") ";
                 // Log the ray source/dir and panel hit UV so we can calibrate aim headlessly.
                 var panelStr = (panelGO != null) ? panelGO.transform.position.ToString() : "none";
+                string mcpInfo = (poseBridge != null) ?
+                    ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation) :
+                    "no-bridge";
                 // Also read the raw trigger float value from the first controller
                 string trigVals = "";
                 foreach (var dd in diagDevs)
@@ -250,7 +253,7 @@ namespace DFUQuest3
                     isCount++;
                     isDev += dev.name + "[" + dev.layout + "] ";
                 }
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
             // If no controller ray, use head-gaze from the OpenXR head-tracking device
