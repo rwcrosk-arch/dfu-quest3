@@ -150,8 +150,8 @@ namespace DFUQuest3
 
         void ParsePoseJson(string poseJson)
         {
-            // Strip the escaped newlines Unity's StringContent may carry.
-            poseJson = poseJson.Replace("\\n", "").Replace("\\r", "");
+            // Strip the escaped newlines Unity's StringContent may carry, and whitespace.
+            poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
             var posStart = poseJson.IndexOf("\"position\":[");
             var oriStart = poseJson.IndexOf("\"orientation\":[");
             if (posStart < 0 || oriStart < 0) return;
