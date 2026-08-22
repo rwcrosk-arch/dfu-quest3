@@ -32,6 +32,7 @@ namespace DFUQuest3
         GameObject reticleGO;
         LineRenderer rayLine;
         public MCPPoseBridge poseBridge; // real controller pose from on-device MCP server
+        public bool useControllerPose = false; // OFF: head-gaze only (MCP controller pose freezes ray in-game)
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -173,18 +174,14 @@ namespace DFUQuest3
                     trigger = true;
             }
 
-            // === MCP pose bridge FIRST (the ONLY path that reads real controller pose) ===
-            // Unity 6 + OpenXR reports controller pose as zeros to InputDevices/InputSystem,
-            // but the on-device MCP server reads it correctly. Use that when FRESH (not stale).
-            if (poseBridge != null && poseBridge.HasFreshPose)
-            {
-                origin = poseBridge.controllerPosition;
-                dir = poseBridge.controllerRotation * Vector3.forward;
-                hasRay = true;
-            }
+            // === MCP pose bridge DISABLED for the ray (change of pace) ===
+            // The MCP controller pose freezes the ray in-game (it reports a frozen pose even
+            // when the controller is resting). Head-gaze from the MCP head pose is reliable
+            // and always tracks. Use head-gaze as the ONLY pointer source for now.
+            // (Controller pose path kept but gated off — see useControllerPose flag.)
 
             // Try Input System XRController for the POSE (Unity 6 + OpenXR path).
-            if (!hasRay)
+            if (!hasRay && useControllerPose)
             foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
             {
                 var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
@@ -206,7 +203,7 @@ namespace DFUQuest3
             }
 
             // Fallback: legacy InputDevices (same zero-pose guard).
-            if (!hasRay)
+            if (!hasRay && useControllerPose)
             {
                 var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
                 InputDevices.GetDevices(devices);
@@ -273,7 +270,7 @@ namespace DFUQuest3
                     isCount++;
                     isDev += dev.name + "[" + dev.layout + "] ";
                 }
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev} | camPos={cameraTransform!=null?cameraTransform.position.ToString():\"none\"} camFwd={cameraTransform!=null?cameraTransform.forward.ToString():\"none\"}");
             }
 
             // If no controller ray, use head-gaze. Unity 6 + OpenXR reports the head pose as
@@ -338,7 +335,7 @@ namespace DFUQuest3
                     rayLine.enabled = true;
                 }
             }
-            else if (reticleGO != null && poseBridge != null && poseBridge.HasFreshPose)
+            else if (reticleGO != null && useControllerPose && poseBridge != null && poseBridge.HasFreshPose)
             {
                 // Controller is active but the ray misses the panel — clamp the reticle to
                 // the nearest panel edge so it never vanishes while pointing. Find the
