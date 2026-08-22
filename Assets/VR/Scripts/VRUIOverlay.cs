@@ -180,7 +180,15 @@ namespace DFUQuest3
                         dd.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tv))
                         trigVals += dd.name + "=" + tv.ToString("0.00") + " ";
                 }
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | trigVals=[{trigVals}]");
+                // Enumerate ALL InputSystem devices to see what's materialized
+                string isDev = "";
+                int isCount = 0;
+                foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+                {
+                    isCount++;
+                    isDev += dev.name + "[" + dev.layout + "] ";
+                }
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
             // If no controller pose, fall back to head pointer.
