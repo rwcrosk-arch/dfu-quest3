@@ -308,6 +308,37 @@ namespace DFUQuest3
                     rayLine.enabled = true;
                 }
             }
+            else if (reticleGO != null && poseBridge != null && poseBridge.controllerValid)
+            {
+                // Controller is active but the ray misses the panel — clamp the reticle to
+                // the nearest panel edge so it never vanishes while pointing. Find the
+                // intersection of the ray direction with the panel plane, projected.
+                var plane = new Plane(-panelGO.transform.forward, panelGO.transform.position);
+                if (plane.Raycast(new Ray(origin, dir), out float pd))
+                {
+                    Vector3 hit = new Ray(origin, dir).GetPoint(pd);
+                    // Clamp hit to the panel's local bounds.
+                    Vector3 local = panelGO.transform.InverseTransformPoint(hit);
+                    local.x = Mathf.Clamp(local.x, -0.5f * width, 0.5f * width);
+                    local.y = Mathf.Clamp(local.y, -0.5f * height, 0.5f * height);
+                    local.z = 0f;
+                    Vector3 clamped = panelGO.transform.TransformPoint(local);
+                    reticleGO.transform.position = clamped;
+                    reticleGO.transform.rotation = panelGO.transform.rotation;
+                    reticleGO.SetActive(true);
+                    if (rayLine != null)
+                    {
+                        rayLine.SetPosition(0, origin);
+                        rayLine.SetPosition(1, clamped);
+                        rayLine.enabled = true;
+                    }
+                }
+                else
+                {
+                    reticleGO.SetActive(false);
+                    if (rayLine != null) rayLine.enabled = false;
+                }
+            }
             else if (reticleGO != null)
             {
                 reticleGO.SetActive(false);

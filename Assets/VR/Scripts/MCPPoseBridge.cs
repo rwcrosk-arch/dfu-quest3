@@ -114,7 +114,9 @@ namespace DFUQuest3
                     lock (readLock) { endpoint = messageEndpoint; }
                     if (!string.IsNullOrEmpty(endpoint))
                     {
-                        var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"right\"}}}";
+                        // Use pose_type=aim (the controller's pointing direction) so the ray
+                        // follows where the controller aims. Grip forward points sideways.
+                        var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"right\",\"pose_type\":\"aim\"}}}";
                         SendRequest(client, json);
                     }
                     Thread.Sleep(pollIntervalMs);
