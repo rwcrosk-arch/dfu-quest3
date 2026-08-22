@@ -118,28 +118,22 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            // === PRIMARY: UnityEngine.XR.InputDevices (the OpenXR path) ===
-            // OVRInput is dead under OpenXR. Enumerate the device list to find the
-            // right-hand controller robustly (XRNode.RightHand handle can be invalid).
-            UnityEngine.XR.InputDevice rightHand = default;
-            var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-            InputDevices.GetDevices(devices);
-            foreach (var d in devices)
+            // === PRIMARY: Input System XRController.rightHand (the OpenXR data path) ===
+            // OVRInput is dead (Oculus API), and legacy InputDevices.GetDevices() only shows
+            // the head with OpenXR. The real controller pose/buttons live on the Input
+            // System's XRController. rightHand is the static accessor for the RightHand usage.
+            var xrCtrl = UnityEngine.InputSystem.XR.XRController.rightHand;
+            if (xrCtrl != null)
             {
-                if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0 &&
-                    (d.characteristics & InputDeviceCharacteristics.Right) != 0)
+                // Look up controls by name (robust across XRController layouts).
+                var posCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.Vector3Control>("devicePosition");
+                var rotCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.QuaternionControl>("deviceRotation");
+                var trigCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger");
+                if (trigCtrl != null) trigger = trigCtrl.ReadValue() > 0.5f;
+                if (posCtrl != null && rotCtrl != null)
                 {
-                    rightHand = d;
-                    break;
-                }
-            }
-            if (rightHand.isValid)
-            {
-                if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t)) trigger = t > 0.5f;
-                if (rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out origin) &&
-                    rightHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion r))
-                {
-                    dir = r * Vector3.forward;
+                    origin = posCtrl.ReadValue();
+                    dir = rotCtrl.ReadValue() * Vector3.forward;
                     hasRay = true;
                 }
             }
@@ -149,14 +143,15 @@ namespace DFUQuest3
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                var diagDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-                InputDevices.GetDevices(diagDevices);
-                string devs = "";
-                foreach (var d in diagDevices)
+                var xrRH = UnityEngine.InputSystem.XR.XRController.rightHand;
+                string xrState = xrRH != null ? "XRRH present" : "XRRH null";
+                string xrTrig = "n/a";
+                if (xrRH != null)
                 {
-                    devs += d.name + "(" + d.characteristics + ") ";
+                    var tc = xrRH.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger");
+                    xrTrig = tc != null ? (tc.ReadValue() > 0.5f ? "trig=1" : "trig=0") : "no-trig-ctrl";
                 }
-                Debug.Log($"[DFUQuest3] devices=[{devs}] XRCam pos={cameraTransform?.position} fwd={cameraTransform?.forward}");
+                Debug.Log($"[DFUQuest3] {xrState} {xrTrig} XRCam pos={cameraTransform?.position}");
             }
 
             // If no controller pose, fall back to head pointer.
