@@ -53,33 +53,9 @@ namespace DFUQuest3
 #if ENABLE_INPUT_SYSTEM
             // already enabled via PlayerSettings.activeInputHandler
 #endif
-            var gm = GameManager.Instance;
-            if (gm == null) { Debug.LogWarning("[DFUQuest3] No GameManager yet"); return; }
-
-            // Build XR Origin
+            // Build XR Origin (the camera is DFU's existing MainCamera, wired by VRRigBootstrap)
             var originGO = new GameObject("XR Origin (VR)");
             var origin = originGO.AddComponent<XROrigin>();
-
-            // XR camera
-            var camGO = new GameObject("Main Camera (XR)");
-            camGO.transform.SetParent(originGO.transform, false);
-            camGO.tag = "MainCamera";
-            var cam = camGO.AddComponent<Camera>();
-            cam.nearClipPlane = 0.05f;
-            cam.farClipPlane = 2000f;
-            cam.clearFlags = CameraClearFlags.Skybox;
-            origin.Camera = cam;
-            camGO.AddComponent<AudioListener>();
-
-            // Head tracking: TrackedPoseDriver (Input System) drives the camera from the headset.
-            // Without this, the view is pinned to the world and head rotation does nothing.
-            var tpd = camGO.AddComponent<UnityEngine.InputSystem.XR.TrackedPoseDriver>();
-            tpd.positionInput = new UnityEngine.InputSystem.InputActionProperty(
-                new UnityEngine.InputSystem.InputAction("Position", UnityEngine.InputSystem.InputActionType.Value, "<XRHMD>/centerEyePosition"));
-            tpd.rotationInput = new UnityEngine.InputSystem.InputActionProperty(
-                new UnityEngine.InputSystem.InputAction("Rotation", UnityEngine.InputSystem.InputActionType.Value, "<XRHMD>/centerEyeRotation"));
-            tpd.trackingType = UnityEngine.InputSystem.XR.TrackedPoseDriver.TrackingType.RotationAndPosition;
-            tpd.updateType = UnityEngine.InputSystem.XR.TrackedPoseDriver.UpdateType.BeforeRender;
 
             // Controllers (simple tracked pose — XRI 3.x actions via defaults)
             var leftGO = new GameObject("Left Controller");
@@ -90,22 +66,19 @@ namespace DFUQuest3
             rightGO.transform.SetParent(originGO.transform, false);
             rightGO.AddComponent<UnityEngine.XR.Interaction.Toolkit.XRController>();
 
-            // Bootstrap + input
+            // Bootstrap + input (camera wired to DFU's MainCamera inside VRRigBootstrap)
             var setup = originGO.AddComponent<VRRigBootstrap>();
             setup.xrOrigin = origin;
 
-            var input = originGO.AddComponent<VRPlayerInput>();
-            input.headTransform = cam.transform;
-
             // VR UI overlay — renders DFU's IMGUI menu into a world-space quad.
+            // Uses Camera.main (DFU's camera) as the head transform.
             var overlayGO = new GameObject("DFU VR UI Overlay");
             var overlay = overlayGO.AddComponent<VRUIOverlay>();
-            overlay.Init(cam.transform);
             overlayGO.transform.SetParent(originGO.transform, false);
 
             DontDestroyOnLoad(originGO);
 
-            Debug.Log("[DFUQuest3] XR rig instantiated at boot.");
+            Debug.Log("[DFUQuest3] XR rig instantiated at boot (DFU camera augment).");
         }
     }
 }

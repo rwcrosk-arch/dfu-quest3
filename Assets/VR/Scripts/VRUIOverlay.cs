@@ -46,6 +46,7 @@ namespace DFUQuest3
         void Update()
         {
             if (!wired) Wire();
+            if (cameraTransform == null) cameraTransform = Camera.main != null ? Camera.main.transform : null;
             if (cameraTransform == null || panelGO == null) return;
 
             // Keep panel floating in front of the head.

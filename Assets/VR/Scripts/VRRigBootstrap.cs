@@ -1,10 +1,12 @@
-// DFU Quest3 VR — XR rig bootstrap.
-// Spawns an XR Origin (XRI 3.x), disables DFU's mouse/camera input stack,
-// and parents the XR camera at DFU's Player head position.
-// Attach to a GameObject in DFU_VR.unity scene.
+// DFU Quest3 VR — XR rig bootstrap (augment-DFU approach).
+// Does NOT create a competing camera. Instead it finds DFU's existing MainCamera,
+// adds head tracking (TrackedPoseDriver) to it, and parent it under the XROrigin.
+// This preserves DFU's Camera.main lookups (PlayerMouseLook, PlayerActivate, etc.)
+// which broke when a separate "Main Camera (XR)" replaced DFU's camera.
 
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.InputSystem;
 using Unity.XR.CoreUtils;
 using DaggerfallWorkshop.Game;
 
@@ -16,77 +18,66 @@ namespace DFUQuest3
         public XROrigin xrOrigin;
         public Camera dfuCamera;
 
-        private PlayerMouseLook mouseLook;
         private bool wired;
 
         void Start()
         {
-            // XRI 3.x: XROrigin (Unity.XR.CoreUtils) replaces the old XRRig.
             if (xrOrigin == null)
                 xrOrigin = FindFirstObjectByType<XROrigin>();
-
             if (xrOrigin == null)
             {
-                Debug.LogError("[DFUQuest3] No XROrigin in scene. Add XR Origin (VR) via GameObject > XR menu.");
+                Debug.LogError("[DFUQuest3] No XROrigin in scene.");
                 enabled = false;
                 return;
             }
-
-            // Locate DFU player rig
-            var player = GameManager.Instance?.PlayerObject;
-            if (player == null)
-            {
-                Debug.LogWarning("[DFUQuest3] GameManager.PlayerObject not ready yet; will retry in Update.");
-                return;
-            }
-            WireToPlayer(player);
+            Wire();
         }
 
         void Update()
         {
             if (wired) return;
-            var player = GameManager.Instance?.PlayerObject;
-            if (player != null) WireToPlayer(player);
+            Wire();
         }
 
-        void WireToPlayer(GameObject player)
+        void Wire()
         {
-            // Strip desktop input
-            mouseLook = player.GetComponent<PlayerMouseLook>() ?? player.GetComponentInChildren<PlayerMouseLook>();
-            if (mouseLook != null) mouseLook.enabled = false;
-
-            // Find DFU's camera and let XR rig take over pose
-            dfuCamera = player.GetComponentInChildren<Camera>(includeInactive: true);
-            if (dfuCamera != null)
+            // DFU's main camera stays the single render camera.
+            dfuCamera = Camera.main;
+            if (dfuCamera == null)
             {
-                dfuCamera.enabled = false; // XR camera renders instead
-                dfuCamera.tag = "Untagged";
+                Debug.LogWarning("[DFUQuest3] Camera.main not ready; retrying.");
+                return;
             }
 
-            // Anchor XR Origin at player's head
-            var headAnchor = dfuCamera != null ? dfuCamera.transform : player.transform;
-            xrOrigin.transform.SetParent(player.transform, worldPositionStays: false);
-            xrOrigin.transform.localPosition = new Vector3(0, 1.6f, 0); // head height
-            xrOrigin.transform.localRotation = Quaternion.identity;
+            // Drive DFU's camera from the headset (TrackedPoseDriver) instead of
+            // creating a second camera. This keeps Camera.main == DFU's camera so
+            // PlayerMouseLook / PlayerActivate / GameManager lookups all still work.
+            var tpd = dfuCamera.GetComponent<TrackedPoseDriver>();
+            if (tpd == null)
+                tpd = dfuCamera.gameObject.AddComponent<TrackedPoseDriver>();
+            tpd.positionInput = new InputActionProperty(
+                new InputAction("Position", InputActionType.Value, "<XRHMD>/centerEyePosition"));
+            tpd.rotationInput = new InputActionProperty(
+                new InputAction("Rotation", InputActionType.Value, "<XRHMD>/centerEyeRotation"));
+            tpd.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
+            tpd.updateType = TrackedPoseDriver.UpdateType.BeforeRender;
 
-            if (xrOrigin.Camera != null)
-            {
-                xrOrigin.Camera.transform.localPosition = Vector3.zero;
-                xrOrigin.Camera.transform.localRotation = Quaternion.identity;
-                Camera.main.tag = "Untagged";
-                xrOrigin.Camera.tag = "MainCamera";
+            // Keep DFU's mouse-look component but neutralize it so it doesn't fight
+            // the XR pose (it would override Camera rotation from mouse input).
+            var ml = dfuCamera.GetComponent<PlayerMouseLook>();
+            if (ml != null) ml.enabled = false;
 
-                // DFU reads camera via DaggerfallUnity singletone
-                var du = FindFirstObjectByType<DaggerfallWorkshop.DaggerfallUnity>();
-                if (du != null)
-                {
-                    // DaggerfallUnity does not expose a settable camera field publicly;
-                    // most subsystems query Camera.main. Tagging the XR camera covers that.
-                }
-            }
+            // Parent the camera under the XROrigin so the rig's floor offset applies.
+            // But keep DFU's camera as the visual root of the world.
+            if (dfuCamera.transform.parent != xrOrigin.transform)
+                dfuCamera.transform.SetParent(xrOrigin.transform, true);
+
+            // Let the XROrigin know which camera is the tracked head.
+            if (xrOrigin.Camera != dfuCamera)
+                xrOrigin.Camera = dfuCamera;
 
             wired = true;
-            Debug.Log("[DFUQuest3] VR rig wired. XR camera is now MainCamera; DFU mouse look disabled.");
+            Debug.Log("[DFUQuest3] DFU camera wired to head tracking (single-camera, augment approach).");
         }
     }
 }
