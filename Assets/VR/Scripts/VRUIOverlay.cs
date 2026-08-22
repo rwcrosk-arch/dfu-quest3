@@ -33,9 +33,6 @@ namespace DFUQuest3
         LineRenderer rayLine;
         public MCPPoseBridge poseBridge; // real controller pose from on-device MCP server
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
-        float dwellTimer;
-        float dwellSeconds = 0.8f;       // hold reticle over an item to click
-        Vector2 dwellUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
         public void Init(Transform cam)
@@ -373,32 +370,12 @@ namespace DFUQuest3
             {
                 Vector2 screen = new Vector2(lastUv.x * Screen.width, (1f - lastUv.y) * Screen.height);
                 dfUI.CustomMousePosition = screen;
-                // Trigger click (when a controller trigger surfaces).
+                // Proper trigger click: rising-edge of the controller trigger.
                 if (trigger && !lastTrigger)
                 {
                     var im = DaggerfallWorkshop.Game.InputManager.Instance;
                     if (im != null) im.vrClickQueued = true;
                     Debug.Log("[DFUQuest3] Trigger press at uv=" + lastUv + " screen=" + screen);
-                }
-
-                // Gaze-dwell click fallback: hold the reticle over a spot ~0.8s to click.
-                // Works without any controller-input read (head-gaze or controller aim).
-                bool nearSame = (lastUv - dwellUv).sqrMagnitude < 0.004f; // ~small movement
-                if (nearSame)
-                {
-                    dwellTimer += Time.unscaledDeltaTime;
-                }
-                else
-                {
-                    dwellTimer = 0f;
-                    dwellUv = lastUv;
-                }
-                if (dwellTimer > dwellSeconds)
-                {
-                    var im2 = DaggerfallWorkshop.Game.InputManager.Instance;
-                    if (im2 != null) im2.vrClickQueued = true;
-                    Debug.Log("[DFUQuest3] Dwell click at uv=" + lastUv + " screen=" + screen);
-                    dwellTimer = 0f;
                 }
             }
             lastTrigger = trigger;
