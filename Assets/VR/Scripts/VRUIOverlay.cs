@@ -219,7 +219,28 @@ namespace DFUQuest3
                 Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
-            // If no controller pose, fall back to head pointer.
+            // If no controller ray, use head-gaze from the OpenXR head-tracking device
+            // (reliable — the head device works via legacy, unlike controllers). Reading
+            // Camera.main can be stuck if the TrackedPoseDriver isn't driving it.
+            if (!hasRay)
+            {
+                var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(hDevices);
+                foreach (var d in hDevices)
+                {
+                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                    {
+                        origin = hp;
+                        dir = hr * Vector3.forward;
+                        hasRay = true;
+                        break;
+                    }
+                }
+            }
+
+            // Last resort: camera transform.
             if (!hasRay && cameraTransform != null)
             {
                 origin = cameraTransform.position;
