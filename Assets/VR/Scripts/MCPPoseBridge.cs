@@ -99,7 +99,12 @@ namespace DFUQuest3
         {
             using (var client = new HttpClient())
             {
-                client.Timeout = TimeSpan.FromMilliseconds(pollIntervalMs);
+                client.Timeout = TimeSpan.FromMilliseconds(requestTimeoutMs);
+                // MCP requires an initialize handshake before tools/call.
+                SendRequest(client, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"dfu-quest3\",\"version\":\"1.0\"}}}");
+                Thread.Sleep(100);
+                SendRequest(client, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"notifications/initialized\",\"params\":{}}");
+
                 while (running)
                 {
                     string endpoint;
@@ -107,17 +112,22 @@ namespace DFUQuest3
                     if (!string.IsNullOrEmpty(endpoint))
                     {
                         var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"right\"}}}";
-                        try
-                        {
-                            var content = new StringContent(json, Encoding.UTF8, "application/json");
-                            // Fire the POST; response will arrive on the SSE stream.
-                            client.PostAsync(endpoint, content).GetAwaiter().GetResult();
-                        }
-                        catch { }
+                        SendRequest(client, json);
                     }
                     Thread.Sleep(pollIntervalMs);
                 }
             }
+        }
+
+        void SendRequest(HttpClient client, string json)
+        {
+            try
+            {
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                // Fire the POST; response will arrive on the SSE stream.
+                client.PostAsync(messageEndpoint, content).GetAwaiter().GetResult();
+            }
+            catch { }
         }
 
         // SSE "data" for a tools/call result: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{poseJson}"}]}}
