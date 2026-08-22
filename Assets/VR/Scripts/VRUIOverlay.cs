@@ -29,6 +29,7 @@ namespace DFUQuest3
         bool wired;
         bool lastTrigger;
         bool panelAnchored;
+        GameObject reticleGO;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -97,6 +98,19 @@ namespace DFUQuest3
         RenderTexture CreateTargetTexture()
         {
             return new RenderTexture(renderWidth, renderHeight, 0, RenderTextureFormat.ARGB32);
+        }
+
+        void BuildReticle()
+        {
+            if (reticleGO != null) return;
+            reticleGO = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            reticleGO.name = "DFU VR Reticle";
+            reticleGO.transform.localScale = new Vector3(0.012f, 0.012f, 0.012f);
+            var mat = new Material(Shader.Find("Unlit/Color"));
+            mat.color = new Color(1f, 1f, 0.4f, 1f); // bright yellow-green, clearly visible
+            reticleGO.GetComponent<Renderer>().sharedMaterial = mat;
+            reticleGO.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            reticleGO.GetComponent<Renderer>().receiveShadows = false;
         }
 
         void Wire()
@@ -213,6 +227,7 @@ namespace DFUQuest3
             }
 
             // Raycast to panel -> UV.
+            BuildReticle();
             var plane = new Plane(-panelGO.transform.forward, panelGO.transform.position);
             if (plane.Raycast(new Ray(origin, dir), out float dist))
             {
@@ -221,6 +236,17 @@ namespace DFUQuest3
                 float u = Mathf.Clamp01(local.x + 0.5f);
                 float v = Mathf.Clamp01(0.5f - local.y);
                 lastUv = new Vector2(u, v);
+                // Position the reticle exactly at the ray hit on the panel surface.
+                if (reticleGO != null)
+                {
+                    reticleGO.transform.position = new Ray(origin, dir).GetPoint(dist);
+                    reticleGO.transform.rotation = panelGO.transform.rotation;
+                    reticleGO.SetActive(true);
+                }
+            }
+            else if (reticleGO != null)
+            {
+                reticleGO.SetActive(false);
             }
 
             // Drive DFU's cursor to the panel position.
