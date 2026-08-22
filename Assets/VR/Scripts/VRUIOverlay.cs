@@ -19,8 +19,11 @@ namespace DFUQuest3
         public float distance = 2.0f;
         public float width = 1.8f;
         public float height = 1.35f;
-        public int renderWidth = 1600;
-        public int renderHeight = 1200;
+        // Render target resolution. The UI quad is only 1.8m wide in VR, so a 700x525
+        // target renders identically sharp on the headset at a fraction of the GPU cost of
+        // 1600x1200 (which saturated the GPU and starved the audio DSP thread -> slow sound).
+        public int renderWidth = 720;
+        public int renderHeight = 540;
 
         Transform cameraTransform;
         GameObject panelGO;
