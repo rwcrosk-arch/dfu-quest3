@@ -270,7 +270,9 @@ namespace DFUQuest3
                     isCount++;
                     isDev += dev.name + "[" + dev.layout + "] ";
                 }
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev} | camPos={cameraTransform!=null?cameraTransform.position.ToString():\"none\"} camFwd={cameraTransform!=null?cameraTransform.forward.ToString():\"none\"}");
+                string camPos = cameraTransform != null ? cameraTransform.position.ToString() : "none";
+                string camFwd = cameraTransform != null ? cameraTransform.forward.ToString() : "none";
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev} | camPos={camPos} camFwd={camFwd}");
             }
 
             // If no controller ray, use head-gaze. Unity 6 + OpenXR reports the head pose as
