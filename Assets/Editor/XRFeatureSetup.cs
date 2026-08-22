@@ -40,33 +40,21 @@ namespace DFUQuest3.EditorTools
                 }
                 if (f == null) continue;
                 string name = f.GetType().Name;
-                // Disable ONLY the Detached variants — they bind /detached_controller_meta +
-                // thumbrest/force paths that fail xrSuggestInteractionProfileBindings.
-                // Keep base Oculus Touch + Meta Quest Touch Plus/Pro: together they register
-                // the Quest controllers through legacy InputDevices (proven earlier).
+                // Enable base + Plus/Pro interaction profiles AND the Meta/Oculus Quest native
+                // features. The native features provide the Oculus Touch system extension that
+                // surfaces the controllers (proven: they appeared only when native features were
+                // on). CMake 3.22.1 is now installed so the native extensions build.
                 if (name.Contains("Detached"))
                 {
-                    if (f.enabled)
-                    {
-                        f.enabled = false;
-                        Debug.Log("[XRFEATURE] DISABLED " + name + " (detached bindings unsupported)");
-                    }
+                    // Detached profiles bind unsupported paths — keep them off.
+                    if (f.enabled) { f.enabled = false; Debug.Log("[XRFEATURE] DISABLED " + name); }
                     continue;
                 }
-                // Disable the native Quest features (broke build).
-                if (name.Contains("MetaQuestFeature") || name.Contains("OculusQuestFeature"))
-                {
-                    if (f.enabled)
-                    {
-                        f.enabled = false;
-                        Debug.Log("[XRFEATURE] DISABLED " + name + " (native extension breaks build)");
-                    }
-                    continue;
-                }
-                // Enable base Oculus Touch + Meta Quest Touch Plus/Pro profiles.
                 if (name.Contains("OculusTouchControllerProfile") ||
                     name.Contains("MetaQuestTouchPlusControllerProfile") ||
-                    name.Contains("MetaQuestTouchProControllerProfile"))
+                    name.Contains("MetaQuestTouchProControllerProfile") ||
+                    name.Contains("MetaQuestFeature") ||
+                    name.Contains("OculusQuestFeature"))
                 {
                     if (!f.enabled)
                     {
@@ -77,6 +65,10 @@ namespace DFUQuest3.EditorTools
                     else
                     {
                         Debug.Log("[XRFEATURE] Already enabled " + name);
+                    }
+                    if (name.Contains("MetaQuestFeature"))
+                    {
+                        EnableQuestDevice(f);
                     }
                 }
             }
