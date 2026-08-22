@@ -28,6 +28,7 @@ namespace DFUQuest3
         DaggerfallUI dfUI;
         bool wired;
         bool lastTrigger;
+        bool panelAnchored;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -47,12 +48,20 @@ namespace DFUQuest3
         {
             if (!wired) Wire();
             if (cameraTransform == null) cameraTransform = Camera.main != null ? Camera.main.transform : null;
-            if (cameraTransform == null || panelGO == null) return;
+            if (panelGO == null) return;
 
-            // Keep panel floating in front of the head.
-            Vector3 pos = cameraTransform.position + cameraTransform.forward * distance;
-            panelGO.transform.position = pos;
-            panelGO.transform.rotation = Quaternion.LookRotation(pos - cameraTransform.position);
+            // Anchor the panel ONCE at a fixed world position (old-fork proven approach:
+            // a stationary menu is far more stable than a head-locked one that fights the
+            // XR camera each frame). Place it 2m in front of the camera's initial pose.
+            if (!panelAnchored)
+            {
+                if (cameraTransform == null) return; // wait for camera
+                Vector3 pos = cameraTransform.position + cameraTransform.forward * distance;
+                panelGO.transform.position = pos;
+                panelGO.transform.rotation = Quaternion.LookRotation(pos - cameraTransform.position);
+                panelAnchored = true;
+                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position);
+            }
 
             // Sync the quad texture to DFU's current render target every frame —
             // UserInterfaceRenderTarget.Update() recreates the texture, so a one-time
