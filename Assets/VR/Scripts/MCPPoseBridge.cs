@@ -31,12 +31,16 @@ namespace DFUQuest3
         const float staleTimeout = 0.5f; // if no fresh pose frame, invalidate (fall back to head-gaze)
         float lastPoseFrame;
 
+        // Thread-safe monotonic clock (Time.unscaledTime is main-thread-only and would throw
+        // from the background SSE reader thread).
+        static float NowSeconds { get { return System.Environment.TickCount / 1000f; } }
+
         // True only when we have a valid, FRESH controller pose (not a stale frozen one).
         public bool HasFreshPose
         {
             get
             {
-                return controllerValid && (Time.unscaledTime - lastPoseFrame) < staleTimeout;
+                return controllerValid && (NowSeconds - lastPoseFrame) < staleTimeout;
             }
         }
 
@@ -101,7 +105,7 @@ namespace DFUQuest3
                                     }
                                     else
                                     {
-                                        lastPoseFrame = Time.unscaledTime;
+                                        lastPoseFrame = NowSeconds;
                                         ParseResponse(data);
                                     }
                                 }
