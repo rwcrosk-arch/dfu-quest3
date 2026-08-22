@@ -158,6 +158,32 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
+            // === UNCONDITIONAL trigger read (independent of the pose path) ===
+            // The trigger must be read even when the MCP pose bridge supplies the ray
+            // (hasRay=true), because the pose loops below are gated on !hasRay and would
+            // otherwise skip the trigger read. This block runs every frame, no matter what.
+            // Sources: InputSystem XRController devices, then legacy InputDevices.
+            foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+            {
+                var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
+                if (xrCtrl == null) continue;
+                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null && tc.ReadValue() > 0.5f)
+                    trigger = true;
+            }
+            if (!trigger)
+            {
+                var trigDevs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(trigDevs);
+                foreach (var d in trigDevs)
+                {
+                    if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
+                    {
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tf) && tf > 0.5f) { trigger = true; break; }
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb) && tb) { trigger = true; break; }
+                    }
+                }
+            }
+
             // === Head-gaze as the reliable pointer (head tracking is solid; the OpenXR
             // controller may not materialize to Unity app code on Unity 6). The controller
             // overrides when it surfaces; otherwise the head-gaze fallback below applies.
@@ -188,8 +214,6 @@ namespace DFUQuest3
                 // lock the ray at origin. Sanity-check before overriding head-gaze.
                 if (cp.sqrMagnitude < 0.001f || float.IsNaN(cr.x) || float.IsNaN(cr.y) || float.IsNaN(cr.z) || float.IsNaN(cr.w))
                     continue;
-                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
-                    trigger = tc.ReadValue() > 0.5f;
                 origin = cp;
                 dir = cr * Vector3.forward;
                 hasRay = true;
@@ -205,7 +229,6 @@ namespace DFUQuest3
                 {
                     if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
                     {
-                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t) && t > 0.5f) trigger = true;
                         if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 cp) &&
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
