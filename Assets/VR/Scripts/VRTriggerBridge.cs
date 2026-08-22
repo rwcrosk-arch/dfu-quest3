@@ -2,8 +2,8 @@
 // VRUIOverlay.cs must remain byte-identical to the known-good baseline (any edit regresses
 // controller ray tracking). This component is a separate, purely-additive trigger reader
 // that sets InputManager.vrClickQueued on a rising trigger edge — the same flag the overlay's
-// click path consumes. It reads the trigger from InputSystem XRController devices and legacy
-// InputDevices every frame.
+// click path consumes. Reads the trigger from InputSystem XRController (analog axis),
+// OVRInput, and legacy InputDevices. Each source is guarded so one failure never aborts the rest.
 
 using UnityEngine;
 using UnityEngine.XR;
@@ -43,7 +43,24 @@ namespace DFUQuest3
 
         bool ReadTrigger()
         {
-            // 0) OVRInput (Meta SDK native input) — may read the real trigger even on OpenXR
+            // 0) InputSystem XR devices — the trigger control is an ANALOG AxisControl
+            //    (0-1), not a ButtonControl. Reading it as ButtonControl throws
+            //    InvalidOperationException every frame, so read it as an axis.
+            try
+            {
+                foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+                {
+                    if (dev is UnityEngine.InputSystem.XR.XRController xrCtrl)
+                    {
+                        var axis = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.AxisControl>("trigger");
+                        if (axis != null && axis.ReadValue() > 0.5f)
+                            return true;
+                    }
+                }
+            }
+            catch { }
+
+            // 2) OVRInput (Meta SDK native) — may read the real trigger even on OpenXR
             //    now that the interaction profile is bound and the controller tracks.
             try
             {
@@ -52,25 +69,21 @@ namespace DFUQuest3
             }
             catch { /* OVRInput may not be initialized */ }
 
-            // 1) InputSystem XRController devices.
-            foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+            // 3) Legacy InputDevices.
+            try
             {
-                var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
-                if (xrCtrl == null) continue;
-                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null && tc.ReadValue() > 0.5f)
-                    return true;
-            }
-            // 2) Legacy InputDevices.
-            var devs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-            InputDevices.GetDevices(devs);
-            foreach (var d in devs)
-            {
-                if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
+                var devs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(devs);
+                foreach (var d in devs)
                 {
-                    if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tf) && tf > 0.5f) return true;
-                    if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb) && tb) return true;
+                    if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
+                    {
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float tf) && tf > 0.5f) return true;
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.triggerButton, out bool tb) && tb) return true;
+                    }
                 }
             }
+            catch { }
             return false;
         }
     }
