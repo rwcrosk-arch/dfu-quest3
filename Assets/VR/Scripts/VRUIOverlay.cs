@@ -31,9 +31,6 @@ namespace DFUQuest3
         bool panelAnchored;
         GameObject reticleGO;
         LineRenderer rayLine;
-        Vector3 lastGazePos = Vector3.zero;
-        Quaternion lastGazeRot = Quaternion.identity;
-        bool gazeValid;
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
 
@@ -172,15 +169,22 @@ namespace DFUQuest3
                 var posCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.Vector3Control>("devicePosition");
                 var rotCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.QuaternionControl>("deviceRotation");
                 if (posCtrl == null) continue;
+                Vector3 cp = posCtrl.ReadValue();
+                Quaternion cr = rotCtrl != null ? rotCtrl.ReadValue() : Quaternion.identity;
+                // Only adopt the controller if its pose is actually valid. On Unity 6 + OpenXR
+                // the controller may be listed but report a ZERO pose — adopting it would
+                // lock the ray at origin. Sanity-check before overriding head-gaze.
+                if (cp.sqrMagnitude < 0.001f || !cr.IsFinite() || cr == Quaternion.identity)
+                    continue;
                 if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
                     trigger = tc.ReadValue() > 0.5f;
-                origin = posCtrl.ReadValue();
-                if (rotCtrl != null) dir = rotCtrl.ReadValue() * Vector3.forward;
+                origin = cp;
+                dir = cr * Vector3.forward;
                 hasRay = true;
                 break;
             }
 
-            // Fallback: legacy InputDevices.
+            // Fallback: legacy InputDevices (same zero-pose guard).
             if (!hasRay)
             {
                 var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
@@ -190,10 +194,12 @@ namespace DFUQuest3
                     if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
                     {
                         if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t) && t > 0.5f) trigger = true;
-                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out origin) &&
-                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion r))
+                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 cp) &&
+                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
-                            dir = r * Vector3.forward;
+                            if (cp.sqrMagnitude < 0.001f) continue; // zero pose = dead controller, skip
+                            origin = cp;
+                            dir = cr * Vector3.forward;
                             hasRay = true;
                             break;
                         }
@@ -236,31 +242,22 @@ namespace DFUQuest3
             }
 
             // If no controller ray, use head-gaze from the OpenXR head-tracking device
-            // (reliable — the head device works via legacy, unlike controllers). Keep the
-            // last-known pose so brief tracking dropouts don't freeze/lock the reticle.
+            // (reliable — the head device works via legacy, unlike controllers).
             if (!hasRay)
             {
                 var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
                 InputDevices.GetDevices(hDevices);
                 foreach (var d in hDevices)
                 {
-                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0)
+                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
                     {
-                        if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
-                        {
-                            lastGazePos = hp;
-                            lastGazeRot = hr;
-                            gazeValid = true;
-                        }
+                        origin = hp;
+                        dir = hr * Vector3.forward;
+                        hasRay = true;
                         break;
                     }
-                }
-                if (gazeValid)
-                {
-                    origin = lastGazePos;
-                    dir = lastGazeRot * Vector3.forward;
-                    hasRay = true;
                 }
             }
 
