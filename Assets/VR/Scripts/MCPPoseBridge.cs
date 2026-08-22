@@ -202,7 +202,25 @@ namespace DFUQuest3
             poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
             var posStart = poseJson.IndexOf("\"position\":[");
             var oriStart = poseJson.IndexOf("\"orientation\":[");
+            var activeIdx = poseJson.IndexOf("\"is_active\":");
+            var trackedIdx = poseJson.IndexOf("\"position_tracked\":");
             if (posStart < 0 || oriStart < 0) return;
+
+            // CRITICAL: only treat as valid if the controller is ACTIVELY TRACKED.
+            // The MCP server returns a (possibly frozen) pose even when is_active=0 and
+            // position_tracked=false — trusting it freezes the ray on a dead pose.
+            bool isActive = false, positionTracked = false;
+            if (activeIdx >= 0)
+            {
+                // value after "is_active": -> 0 or 1
+                int v = activeIdx + 12;
+                isActive = v < poseJson.Length && poseJson[v] == '1';
+            }
+            if (trackedIdx >= 0)
+            {
+                int v = trackedIdx + 19;
+                positionTracked = v < poseJson.Length && poseJson[v] == 't'; // "true" or "false"
+            }
 
             posStart += 12;
             var posEnd = poseJson.IndexOf("]", posStart);
@@ -225,8 +243,8 @@ namespace DFUQuest3
                 //   position Z negate; quaternion X negate, Y negate, Z/W same.
                 controllerPosition = new Vector3(pos[0], pos[1], -pos[2]);
                 controllerRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
-                // Consider it valid if the position is non-zero (a real tracked pose).
-                controllerValid = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2] > 0.0001f;
+                // Valid ONLY when actively tracked (is_active AND position_tracked).
+                controllerValid = isActive && positionTracked;
             }
         }
     }
