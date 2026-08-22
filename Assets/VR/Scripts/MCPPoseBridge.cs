@@ -145,6 +145,7 @@ namespace DFUQuest3
 
         void ParsePoseJson(string poseJson)
         {
+            Debug.Log("[DFUQuest3] MCP pose bridge raw: " + (poseJson.Length > 200 ? poseJson.Substring(0, 200) : poseJson));
             var posStart = poseJson.IndexOf("\"position\":[");
             var oriStart = poseJson.IndexOf("\"orientation\":[");
             var activeIdx = poseJson.IndexOf("\"is_active\":");
