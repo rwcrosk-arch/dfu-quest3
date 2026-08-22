@@ -272,7 +272,11 @@ namespace DFUQuest3
                 }
                 string camPos = cameraTransform != null ? cameraTransform.position.ToString() : "none";
                 string camFwd = cameraTransform != null ? cameraTransform.forward.ToString() : "none";
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev} | camPos={camPos} camFwd={camFwd}");
+                // Enumerate ALL cameras to find the live XR rendering camera.
+                string allCams = "";
+                foreach (var c in Camera.allCameras)
+                    allCams += c.name + "[" + c.transform.position + " fwd=" + c.transform.forward + "] ";
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev} | camPos={camPos} camFwd={camFwd} | ALLCAMS: {allCams}");
             }
 
             // If no controller ray, use head-gaze. Unity 6 + OpenXR reports the head pose as
