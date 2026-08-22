@@ -199,8 +199,10 @@ namespace DFUQuest3
                     float.TryParse(oriStr[i].Trim(), System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture, out rot[i]);
 
-                controllerPosition = new Vector3(pos[0], pos[1], pos[2]);
-                controllerRotation = new Quaternion(rot[0], rot[1], rot[2], rot[3]);
+                // OpenXR→Unity coordinate conversion (Meta's documented table):
+                //   position Z negate; quaternion X negate, Y negate, Z/W same.
+                controllerPosition = new Vector3(pos[0], pos[1], -pos[2]);
+                controllerRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
                 // Consider it valid if the position is non-zero (a real tracked pose).
                 controllerValid = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2] > 0.0001f;
             }
