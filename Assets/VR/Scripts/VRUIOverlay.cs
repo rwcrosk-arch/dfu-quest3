@@ -118,24 +118,44 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            // === PRIMARY: Input System XR devices (OpenXR data path in Unity 6) ===
-            // rightHand static accessor can return null because the RightHand usage is only
-            // assigned under UNITY_INPUT_SYSTEM_ENABLE_XR. Iterate all InputSystem devices
-            // and read the first XRController that exposes trigger + devicePosition controls.
-            var allInput = UnityEngine.InputSystem.InputSystem.devices;
-            foreach (var dev in allInput)
+            // === PRIMARY: legacy UnityEngine.XR.InputDevices ===
+            // With base + Plus/Pro interaction profiles enabled (and Detached off), the
+            // controllers register through legacy InputDevices (proven earlier: "Oculus
+            // Touch Controller OpenXR (Left/Right)" appeared here).
+            var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+            InputDevices.GetDevices(devices);
+            foreach (var d in devices)
             {
-                var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
-                if (xrCtrl == null) continue;
-                var posCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.Vector3Control>("devicePosition");
-                var rotCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.QuaternionControl>("deviceRotation");
-                var trigCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger");
-                if (posCtrl == null) continue; // must be a controller with pose
-                if (trigCtrl != null) trigger = trigCtrl.ReadValue() > 0.5f;
-                origin = posCtrl.ReadValue();
-                if (rotCtrl != null) dir = rotCtrl.ReadValue() * Vector3.forward;
-                hasRay = true;
-                break;
+                if ((d.characteristics & InputDeviceCharacteristics.Controller) != 0)
+                {
+                    if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float t) && t > 0.5f) trigger = true;
+                    if (d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out origin) &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion r))
+                    {
+                        dir = r * Vector3.forward;
+                        hasRay = true;
+                        break; // use first controller with a pose (prefer right)
+                    }
+                }
+            }
+
+            // Fallback: Input System XR devices if legacy yielded nothing.
+            if (!hasRay)
+            {
+                foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+                {
+                    var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
+                    if (xrCtrl == null) continue;
+                    var posCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.Vector3Control>("devicePosition");
+                    var rotCtrl = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.QuaternionControl>("deviceRotation");
+                    if (posCtrl == null) continue;
+                    if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
+                        trigger = tc.ReadValue() > 0.5f;
+                    origin = posCtrl.ReadValue();
+                    if (rotCtrl != null) dir = rotCtrl.ReadValue() * Vector3.forward;
+                    hasRay = true;
+                    break;
+                }
             }
 
             // Periodic diagnostics so we can see controller state on-device.

@@ -40,17 +40,16 @@ namespace DFUQuest3.EditorTools
                 }
                 if (f == null) continue;
                 string name = f.GetType().Name;
-                // Disable the profiles that break binding: Meta Quest Touch Plus/Pro and
-                // all Detached variants bind /detached_controller_meta + thumbrest/force
-                // paths that require XR_META_detached_controllers (native feature we can't
-                // bundle) -> xrSuggestInteractionProfileBindings fails -> no controllers.
-                if (name.Contains("Detached") || name.Contains("MetaQuestTouchPlus") ||
-                    name.Contains("MetaQuestTouchPro"))
+                // Disable ONLY the Detached variants — they bind /detached_controller_meta +
+                // thumbrest/force paths that fail xrSuggestInteractionProfileBindings.
+                // Keep base Oculus Touch + Meta Quest Touch Plus/Pro: together they register
+                // the Quest controllers through legacy InputDevices (proven earlier).
+                if (name.Contains("Detached"))
                 {
                     if (f.enabled)
                     {
                         f.enabled = false;
-                        Debug.Log("[XRFEATURE] DISABLED " + name + " (unsupported bindings)");
+                        Debug.Log("[XRFEATURE] DISABLED " + name + " (detached bindings unsupported)");
                     }
                     continue;
                 }
@@ -64,9 +63,10 @@ namespace DFUQuest3.EditorTools
                     }
                     continue;
                 }
-                // Enable ONLY the plain Oculus Touch profile — binds standard /input/* paths
-                // that always work and register the Quest controllers.
-                if (name.Contains("OculusTouchControllerProfile"))
+                // Enable base Oculus Touch + Meta Quest Touch Plus/Pro profiles.
+                if (name.Contains("OculusTouchControllerProfile") ||
+                    name.Contains("MetaQuestTouchPlusControllerProfile") ||
+                    name.Contains("MetaQuestTouchProControllerProfile"))
                 {
                     if (!f.enabled)
                     {
