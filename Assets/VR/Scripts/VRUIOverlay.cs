@@ -163,18 +163,13 @@ namespace DFUQuest3
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                var diagDevices = UnityEngine.InputSystem.InputSystem.devices;
-                int xrCount = 0; string trigState = "no-xr";
-                foreach (var d in diagDevices)
-                {
-                    if (d is UnityEngine.InputSystem.XR.XRController)
-                    {
-                        xrCount++;
-                        var tc = d.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger");
-                        if (tc != null) trigState = tc.ReadValue() > 0.5f ? "trig=1" : "trig=0";
-                    }
-                }
-                Debug.Log($"[DFUQuest3] XRControllers={xrCount} {trigState} XRCam pos={cameraTransform?.position}");
+                // Legacy InputDevices list (the path controllers surfaced through before)
+                var diagDevs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                InputDevices.GetDevices(diagDevs);
+                string devList = "";
+                foreach (var dd in diagDevs)
+                    devList += dd.name + "(" + dd.characteristics + ") ";
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}]");
             }
 
             // If no controller pose, fall back to head pointer.
