@@ -174,7 +174,7 @@ namespace DFUQuest3
                 // Only adopt the controller if its pose is actually valid. On Unity 6 + OpenXR
                 // the controller may be listed but report a ZERO pose — adopting it would
                 // lock the ray at origin. Sanity-check before overriding head-gaze.
-                if (cp.sqrMagnitude < 0.001f || !cr.IsFinite() || cr == Quaternion.identity)
+                if (cp.sqrMagnitude < 0.001f || float.IsNaN(cr.x) || float.IsNaN(cr.y) || float.IsNaN(cr.z) || float.IsNaN(cr.w))
                     continue;
                 if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
                     trigger = tc.ReadValue() > 0.5f;
