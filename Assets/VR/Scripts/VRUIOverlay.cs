@@ -165,6 +165,17 @@ namespace DFUQuest3
             // controller may not materialize to Unity app code on Unity 6). The controller
             // overrides when it surfaces; otherwise the head-gaze fallback below applies.
 
+            // === ALWAYS read the trigger from InputSystem XR controllers ===
+            // The InputSystem creates MetaQuestTouchPlusControllerOpenXR devices; read the
+            // trigger here regardless of which pose source we use for the ray.
+            foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+            {
+                var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
+                if (xrCtrl == null) continue;
+                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null && tc.ReadValue() > 0.5f)
+                    trigger = true;
+            }
+
             // === MCP pose bridge FIRST (the ONLY path that reads real controller pose) ===
             // Unity 6 + OpenXR reports controller pose as zeros to InputDevices/InputSystem,
             // but the on-device MCP server reads it correctly. Use that when valid.
@@ -175,7 +186,7 @@ namespace DFUQuest3
                 hasRay = true;
             }
 
-            // Try Input System XRController first (Unity 6 + OpenXR path).
+            // Try Input System XRController for the POSE (Unity 6 + OpenXR path).
             if (!hasRay)
             foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
             {
@@ -191,8 +202,6 @@ namespace DFUQuest3
                 // lock the ray at origin. Sanity-check before overriding head-gaze.
                 if (cp.sqrMagnitude < 0.001f || float.IsNaN(cr.x) || float.IsNaN(cr.y) || float.IsNaN(cr.z) || float.IsNaN(cr.w))
                     continue;
-                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
-                    trigger = tc.ReadValue() > 0.5f;
                 origin = cp;
                 dir = cr * Vector3.forward;
                 hasRay = true;
