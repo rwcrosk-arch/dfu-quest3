@@ -50,13 +50,15 @@ namespace DFUQuest3
             if (cameraTransform == null) cameraTransform = Camera.main != null ? Camera.main.transform : null;
             if (panelGO == null) return;
 
-            // Anchor the panel ONCE at a fixed world position (old-fork proven approach:
-            // a stationary menu is far more stable than a head-locked one that fights the
-            // XR camera each frame). Place it 2m in front of the camera's initial pose.
-            if (!panelAnchored)
+            // Anchor the panel at a comfortable distance in front of the head, and
+            // RE-anchor if the user gets far from it (so it's never stranded in the
+            // distance). Old-fork stationary behavior, but always reachable.
+            if (!panelAnchored || (cameraTransform != null &&
+                Vector3.Distance(panelGO.transform.position, cameraTransform.position) > 4f))
             {
                 if (cameraTransform == null) return; // wait for camera
                 Vector3 pos = cameraTransform.position + cameraTransform.forward * distance;
+                pos.y = cameraTransform.position.y; // keep at head height
                 panelGO.transform.position = pos;
                 panelGO.transform.rotation = Quaternion.LookRotation(pos - cameraTransform.position);
                 panelAnchored = true;
@@ -128,10 +130,11 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
-            // === PRIMARY: Input System XRController (correct Unity 6 + OpenXR path) ===
-            // With UNITY_INPUT_SYSTEM_ENABLE_XR + a real controller in hand, OpenXR
-            // controller data surfaces through Input System XRController. Legacy
-            // InputDevices sees the devices but reads ZEROS on Unity 6 + OpenXR.
+            // === Head-gaze as the reliable pointer (head tracking is solid; the OpenXR
+            // controller may not materialize to Unity app code on Unity 6). The controller
+            // overrides when it surfaces; otherwise the head-gaze fallback below applies.
+
+            // Try Input System XRController first (Unity 6 + OpenXR path).
             foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
             {
                 var xrCtrl = dev as UnityEngine.InputSystem.XR.XRController;
@@ -147,7 +150,7 @@ namespace DFUQuest3
                 break;
             }
 
-            // Fallback: legacy UnityEngine.XR.InputDevices if Input System yielded nothing.
+            // Fallback: legacy InputDevices.
             if (!hasRay)
             {
                 var devices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
@@ -167,6 +170,8 @@ namespace DFUQuest3
                     }
                 }
             }
+
+            // If no controller ray, head-gaze is applied below (existing fallback).
 
             // Periodic diagnostics so we can see controller state on-device.
             diagTimer -= Time.unscaledDeltaTime;
