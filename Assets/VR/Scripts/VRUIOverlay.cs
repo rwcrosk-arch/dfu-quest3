@@ -248,7 +248,7 @@ namespace DFUQuest3
                 // Log the ray source/dir and panel hit UV so we can calibrate aim headlessly.
                 var panelStr = (panelGO != null) ? panelGO.transform.position.ToString() : "none";
                 string mcpInfo = (poseBridge != null) ?
-                    ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation) :
+                    ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation + " headValid=" + poseBridge.headValid + " headPos=" + poseBridge.headPosition) :
                     "no-bridge";
                 // Live trigger read — log the raw float value from every controller device
                 // so we can see the exact moment the trigger is pressed.
