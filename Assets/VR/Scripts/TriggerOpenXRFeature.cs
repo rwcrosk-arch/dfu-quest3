@@ -273,21 +273,35 @@ namespace DFUQuest3
         {
             try
             {
-                // Bind the trigger action to the Oculus Touch controller right trigger path.
-                ulong profile = 0, triggerPath = 0;
-                stringToPath(instanceHandle, "/interaction_profiles/oculus/touch_controller", out profile);
+                // The Quest 3 runtime activates meta/touch_controller_plus (we saw
+                // openxr_get_active_interaction_profile return that). OpenXR only drives an
+                // action if a binding exists for the ACTIVE profile. Bind for all the likely
+                // Meta/Oculus controller profiles so whichever the runtime picks gets a binding.
+                string[] profiles = new string[]
+                {
+                    "/interaction_profiles/meta/touch_controller_plus",
+                    "/interaction_profiles/meta/touch_controller_pro",
+                    "/interaction_profiles/oculus/touch_controller"
+                };
+                ulong triggerPath = 0;
                 stringToPath(instanceHandle, "/user/hand/right/input/trigger", out triggerPath);
 
-                var binding = new XrActionSuggestedBinding { action = actionTrigger, binding = triggerPath };
-                var bind = new XrInteractionProfileSuggestedBinding
+                foreach (var prof in profiles)
                 {
-                    type = XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
-                    interactionProfile = profile,
-                    countSuggestedBindings = 1,
-                    suggestedBindings = StructPtr(binding)
-                };
-                int rc = suggestBindings(instanceHandle, StructPtr(bind));
-                Debug.Log("[DFUQuest3] TriggerOpenXRFeature: suggestBindings rc=" + rc);
+                    ulong profile = 0;
+                    stringToPath(instanceHandle, prof, out profile);
+                    if (profile == 0) continue;
+                    var binding = new XrActionSuggestedBinding { action = actionTrigger, binding = triggerPath };
+                    var bind = new XrInteractionProfileSuggestedBinding
+                    {
+                        type = XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING,
+                        interactionProfile = profile,
+                        countSuggestedBindings = 1,
+                        suggestedBindings = StructPtr(binding)
+                    };
+                    int rc = suggestBindings(instanceHandle, StructPtr(bind));
+                    Debug.Log("[DFUQuest3] TriggerOpenXRFeature suggestBindings " + prof + " rc=" + rc);
+                }
             }
             catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature Bind: " + e); }
         }
