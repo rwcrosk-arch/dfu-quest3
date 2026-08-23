@@ -17,6 +17,15 @@ using DaggerfallWorkshop.Game;
 
 namespace DFUQuest3
 {
+#if UNITY_EDITOR
+    [UnityEditor.XR.OpenXR.Features.OpenXRFeature(
+        UiName = "DFU Quest3 Native Trigger Reader",
+        BuildTargetGroups = new[] { UnityEditor.BuildTargetGroup.Android },
+        Company = "DFU Quest3",
+        Desc = "Reads the physical Quest controller trigger via the OpenXR action system (Unity 6 + OpenXR surfaces no controller input device to managed code otherwise).",
+        Version = "0.0.1",
+        FeatureId = TriggerOpenXRFeature.FeatureIdInternal)]
+#endif
     public class TriggerOpenXRFeature : OpenXRFeature
     {
         const int XR_MAX_ACTION_SET_NAME = 64;
