@@ -39,7 +39,7 @@ namespace DFUQuest3
         const int XR_TYPE_ACTION_STATE_GET_INFO = 58;
         const int XR_TYPE_ACTIONS_SYNC_INFO = 61;
         const int XR_TYPE_ACTION_STATE_BOOLEAN = 23;
-        const int XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING = 34;
+        const int XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING = 51; // from OpenXR header
         const int XR_ACTION_TYPE_BOOLEAN_INPUT = 1;
 
         ulong instanceHandle;
