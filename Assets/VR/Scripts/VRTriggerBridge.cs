@@ -29,7 +29,7 @@ namespace DFUQuest3
         void Update()
         {
             // Decisive OVRInput probe: is OVRInput initialized, and does it read the trigger?
-            float hb -= Time.unscaledDeltaTime;
+            hb -= Time.unscaledDeltaTime;
             if (hb <= 0f)
             {
                 hb = 2f;
