@@ -67,8 +67,12 @@ namespace DFUQuest3
         delegate int PFN_xrStringToPath(ulong instance, string path, out ulong pathId);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         delegate int PFN_xrSuggestInteractionProfileBindings(ulong instance, IntPtr suggestedBindings);
+        // xrGetInstanceProcAddr ABI: XrResult xrGetInstanceProcAddr(XrInstance instance,
+        // const char* name, XrVoidFunction** ppFunction) — returns XrResult (int), and
+        // writes the function pointer to the OUT param. (My earlier version wrongly returned
+        // IntPtr, which made every proc lookup return null.)
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate IntPtr PFN_xrGetInstanceProcAddr(ulong instance, string name);
+        delegate int PFN_xrGetInstanceProcAddr(ulong instance, [MarshalAs(UnmanagedType.LPStr)] string name, out IntPtr ppFunction);
 
         PFN_xrCreateActionSet createActionSet;
         PFN_xrCreateAction createAction;
@@ -177,8 +181,10 @@ namespace DFUQuest3
 
         static T GetProc<T>(PFN_xrGetInstanceProcAddr loader, ulong instance, string name) where T : Delegate
         {
-            IntPtr fn = loader(instance, name);
-            return fn == IntPtr.Zero ? null : Marshal.GetDelegateForFunctionPointer<T>(fn);
+            IntPtr fn;
+            int rc = loader(instance, name, out fn);
+            if (rc != 0 || fn == IntPtr.Zero) return null;
+            return Marshal.GetDelegateForFunctionPointer<T>(fn);
         }
 
         protected override void OnSessionCreate(ulong xrSession)
