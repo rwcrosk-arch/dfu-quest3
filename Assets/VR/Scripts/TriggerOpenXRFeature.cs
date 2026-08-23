@@ -40,6 +40,7 @@ namespace DFUQuest3
         const int XR_TYPE_ACTIONS_SYNC_INFO = 61;
         const int XR_TYPE_ACTION_STATE_BOOLEAN = 23;
         const int XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING = 51; // from OpenXR header
+        const int XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO = 60; // from OpenXR header
         const int XR_ACTION_TYPE_BOOLEAN_INPUT = 1;
 
         ulong instanceHandle;
@@ -67,6 +68,10 @@ namespace DFUQuest3
         delegate int PFN_xrStringToPath(ulong instance, string path, out ulong pathId);
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         delegate int PFN_xrSuggestInteractionProfileBindings(ulong instance, IntPtr suggestedBindings);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        delegate int PFN_xrAttachSessionActionSets(ulong session, IntPtr attachInfo);
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        delegate int PFN_xrDestroyActionSet(ulong actionSet);
         // xrGetInstanceProcAddr ABI: XrResult xrGetInstanceProcAddr(XrInstance instance,
         // const char* name, XrVoidFunction** ppFunction) — returns XrResult (int), and
         // writes the function pointer to the OUT param. (My earlier version wrongly returned
@@ -80,6 +85,8 @@ namespace DFUQuest3
         PFN_xrSyncActions syncActions;
         PFN_xrStringToPath stringToPath;
         PFN_xrSuggestInteractionProfileBindings suggestBindings;
+        PFN_xrAttachSessionActionSets attachSessionActionSets;
+        PFN_xrDestroyActionSet destroyActionSet;
 
         [StructLayout(LayoutKind.Sequential)]
         struct XrActionSetCreateInfo
@@ -160,6 +167,15 @@ namespace DFUQuest3
             public IntPtr suggestedBindings;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        struct XrSessionActionSetsAttachInfo
+        {
+            public int type;
+            public IntPtr next;
+            public int countActionSets;
+            public IntPtr actionSets;
+        }
+
         protected override bool OnInstanceCreate(ulong xrInstance)
         {
             instanceHandle = xrInstance;
@@ -173,6 +189,7 @@ namespace DFUQuest3
                 syncActions = GetProc<PFN_xrSyncActions>(loader, xrInstance, "xrSyncActions");
                 stringToPath = GetProc<PFN_xrStringToPath>(loader, xrInstance, "xrStringToPath");
                 suggestBindings = GetProc<PFN_xrSuggestInteractionProfileBindings>(loader, xrInstance, "xrSuggestInteractionProfileBindings");
+                attachSessionActionSets = GetProc<PFN_xrAttachSessionActionSets>(loader, xrInstance, "xrAttachSessionActionSets");
                 Debug.Log("[DFUQuest3] TriggerOpenXRFeature: proc addrs resolved");
             }
             catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature OnInstanceCreate: " + e); }
@@ -229,9 +246,27 @@ namespace DFUQuest3
 
                 created = true;
                 BindTriggerToInteractionProfile();
+                AttachActionSets();
                 Debug.Log("[DFUQuest3] TriggerOpenXRFeature: action set + trigger created");
             }
             catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature CreateActions EX: " + e); }
+        }
+
+        void AttachActionSets()
+        {
+            try
+            {
+                IntPtr setsPtr = StructPtr(actionSet); // pointer to the actionSet handle value
+                var attachInfo = new XrSessionActionSetsAttachInfo
+                {
+                    type = XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO,
+                    countActionSets = 1,
+                    actionSets = setsPtr
+                };
+                int rc = attachSessionActionSets(sessionHandle, StructPtr(attachInfo));
+                Debug.Log("[DFUQuest3] TriggerOpenXRFeature attachSessionActionSets rc=" + rc);
+            }
+            catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature Attach EX: " + e); }
         }
 
         void BindTriggerToInteractionProfile()
@@ -295,7 +330,11 @@ namespace DFUQuest3
                 int rc = syncActions(sessionHandle, syncPtr);
                 Marshal.FreeHGlobal(syncPtr);
                 Marshal.FreeHGlobal(activePtr);
-                if (rc != 0) return false;
+                if (rc != 0)
+                {
+                    Debug.Log("[DFUQuest3] TriggerOpenXRFeature syncActions rc=" + rc);
+                    return false;
+                }
 
                 var getInfo = new XrActionStateGetInfo
                 {
@@ -306,12 +345,18 @@ namespace DFUQuest3
                 IntPtr getPtr = StructPtr(getInfo);
                 rc = getActionStateBoolean(sessionHandle, getPtr, ref state);
                 Marshal.FreeHGlobal(getPtr);
-                if (rc != 0) return false;
+                if (rc != 0)
+                {
+                    Debug.Log("[DFTwin] TriggerOpenXRFeature getActionState rc=" + rc);
+                    return false;
+                }
 
+                Debug.Log("[DFTwin] TriggerOpenXRFeature state isActive=" + state.isActive + " cur=" + state.currentState);
                 return state.isActive != 0 && state.currentState != 0;
             }
-            catch
+            catch (Exception e)
             {
+                Debug.Log("[DFTwin] TriggerOpenXRFeature PollTrigger EX: " + e.Message);
                 return false;
             }
         }
