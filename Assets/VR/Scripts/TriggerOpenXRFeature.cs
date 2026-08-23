@@ -41,7 +41,6 @@ namespace DFUQuest3
         bool bound;
 
         public const string FeatureIdInternal = "com.dfworkshop.dfuquest3.trigger";
-        public override string featureId => FeatureIdInternal;
 
         // The feature is a ScriptableObject asset, not a scene GameObject, so the poller
         // can't use FindObjectOfType. Register a static instance in OnInstanceCreate.
