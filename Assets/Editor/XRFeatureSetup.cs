@@ -90,5 +90,45 @@ namespace DFUQuest3.EditorTools
             EditorUtility.SetDirty(feature);
             Debug.Log("[XRFEATURE] enabled Quest target devices on MetaQuestFeature");
         }
+
+        // Ensures our TriggerOpenXRFeature is present in the OpenXR settings and enabled so
+        // its OnInstanceCreate/OnSessionCreated callbacks fire.
+        public static void EnableTriggerFeature()
+        {
+            var asm = Assembly.Load("Unity.XR.OpenXR.Editor");
+            var pkgType = asm.GetType("UnityEditor.XR.OpenXR.OpenXRPackageSettings");
+            var instanceProp = pkgType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+            var instance = instanceProp?.GetValue(null);
+            if (instance == null) { Debug.LogError("[XRFEATURE] no package instance"); return; }
+
+            var getFeatures = pkgType.GetMethod("GetFeatures").MakeGenericMethod(typeof(UnityEngine.XR.OpenXR.Features.OpenXRFeature));
+            var features = (System.Collections.IEnumerable)getFeatures.Invoke(instance, null);
+
+            UnityEngine.XR.OpenXR.Features.OpenXRFeature target = null;
+            foreach (var entry in features)
+            {
+                var f = (UnityEngine.XR.OpenXR.Features.OpenXRFeature)entry.GetType().GetFields(
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                    .FirstOrDefault(x => x.FieldType == typeof(UnityEngine.XR.OpenXR.Features.OpenXRFeature))?.GetValue(entry);
+                if (f == null) f = (UnityEngine.XR.OpenXR.Features.OpenXRFeature)entry.GetType().GetProperty("Item2")?.GetValue(entry);
+                if (f != null && f.GetType().Name.Contains("TriggerOpenXRFeature")) target = f;
+            }
+            if (target == null)
+            {
+                Debug.LogError("[TriggerFEATURE] TriggerOpenXRFeature not in feature list (script compile ok?)");
+                return;
+            }
+            if (!target.enabled)
+            {
+                target.enabled = true;
+                Debug.Log("[TriggerFEATURE] enabled TriggerOpenXRFeature");
+            }
+            else Debug.Log("[TriggerFEATURE] TriggerOpenXRFeature already enabled");
+
+            EditorUtility.SetDirty((UnityEngine.Object)instance);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log("[TriggerFEATURE] done");
+        }
     }
 }
