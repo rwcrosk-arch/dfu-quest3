@@ -207,8 +207,8 @@ namespace DFUQuest3
                 var setInfo = new XrActionSetCreateInfo
                 {
                     type = XR_TYPE_ACTION_SET_CREATE_INFO,
-                    actionSetName = StringBytes("dfu_trigger"),
-                    localizedActionSetName = StringBytes("DFU Trigger")
+                    actionSetName = StringBytes("dfu_trigger", XR_MAX_ACTION_SET_NAME),
+                    localizedActionSetName = StringBytes("DFU Trigger", XR_MAX_LOCALIZED_ACTION_SET_NAME)
                 };
                 ulong set = 0;
                 int rc = createActionSet(instanceHandle, StructPtr(setInfo), out set);
@@ -219,8 +219,8 @@ namespace DFUQuest3
                 var actInfo = new XrActionCreateInfo
                 {
                     type = XR_TYPE_ACTION_CREATE_INFO,
-                    actionName = StringBytes("trigger"),
-                    localizedActionName = StringBytes("Trigger"),
+                    actionName = StringBytes("trigger", XR_MAX_ACTION_NAME),
+                    localizedActionName = StringBytes("Trigger", XR_MAX_LOCALIZED_ACTION_NAME),
                     actionType = XR_ACTION_TYPE_BOOLEAN_INPUT
                 };
                 rc = createAction(actionSet, StructPtr(actInfo), out actionTrigger);
@@ -257,10 +257,14 @@ namespace DFUQuest3
             catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature Bind: " + e); }
         }
 
-        static byte[] StringBytes(string s)
+        static byte[] StringBytes(string s, int len)
         {
-            var bytes = new byte[s.Length + 1];
-            System.Text.Encoding.ASCII.GetBytes(s, 0, s.Length, bytes, 0);
+            // Pad to the struct's declared array length (64 or 128). The marshaller requires
+            // the embedded byte[] length to match the SizeConst exactly, otherwise
+            // Marshal.StructureToPtr throws.
+            var bytes = new byte[len];
+            var src = System.Text.Encoding.ASCII.GetBytes(s);
+            System.Array.Copy(src, bytes, Math.Min(src.Length, len - 1));
             return bytes;
         }
 
