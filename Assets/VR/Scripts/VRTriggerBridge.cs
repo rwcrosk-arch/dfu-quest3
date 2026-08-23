@@ -28,6 +28,19 @@ namespace DFUQuest3
 
         void Update()
         {
+            // Decisive OVRInput probe: is OVRInput initialized, and does it read the trigger?
+            float hb -= Time.unscaledDeltaTime;
+            if (hb <= 0f)
+            {
+                hb = 2f;
+                string ovrState = "n/a";
+                bool ovrTrig = false;
+                try { ovrState = OVRInput.IsControllerConnected(OVRInput.Controller.RTouch) ? "RTouchConnected" : "RTouchDisconnected"; }
+                catch { ovrState = "OVRInput-not-init"; }
+                try { ovrTrig = OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger); }
+                catch { }
+                Debug.Log("[DFUQuest3] OVRInput probe: " + ovrState + " trigger=" + ovrTrig);
+            }
             bool trigger = ReadTrigger();
             if (trigger && !lastTrigger)
             {
@@ -40,6 +53,8 @@ namespace DFUQuest3
             }
             lastTrigger = trigger;
         }
+
+        float hb = 0f;
 
         bool ReadTrigger()
         {
