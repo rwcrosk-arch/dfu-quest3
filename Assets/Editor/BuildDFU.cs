@@ -66,11 +66,6 @@ public class BuildDFU {
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
         EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
-        // Register + enable the native OpenXR trigger reader feature in the OpenXR settings.
-        // It's what reads the physical controller trigger (Unity 6 + OpenXR surfaces no
-        // controller input device to managed code otherwise).
-        try { DFUQuest3.EditorTools.XRFeatureSetup.EnableTriggerFeature(); }
-        catch (System.Exception e) { Debug.LogError("TRIGGERFEATURE setup failed: " + e.Message); }
         Debug.Log("ANDROID_SETTINGS_PREPPED id=com.dfworkshop.dfuquest3");
     }    public static void ProbeTools() {
         var t = typeof(UnityEditor.PlayerSettings).Assembly.GetType("UnityEditor.Android.AndroidExternalToolsSettings");
