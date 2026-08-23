@@ -322,6 +322,7 @@ namespace DFUQuest3
     public class TriggerPollMono : MonoBehaviour
     {
         bool lastTrigger;
+        float heartbeat = 0f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
@@ -329,6 +330,7 @@ namespace DFUQuest3
             var go = new GameObject("DFUQuest3 TriggerPollMono");
             go.AddComponent<TriggerPollMono>();
             DontDestroyOnLoad(go);
+            Debug.Log("[DFUQuest3] TriggerPollMono auto-wired");
         }
 
         void Update()
@@ -336,6 +338,13 @@ namespace DFUQuest3
             var feat = TriggerOpenXRFeature.Instance;
             if (feat == null) return;
             bool now = feat.PollTrigger();
+            // Heartbeat every 2s so we can see the poller is alive and the raw state.
+            heartbeat -= Time.unscaledDeltaTime;
+            if (heartbeat <= 0f)
+            {
+                heartbeat = 2f;
+                Debug.Log("[DFUQuest3] TriggerPollMono: now=" + now + " last=" + lastTrigger);
+            }
             if (now && !lastTrigger)
             {
                 var im = InputManager.Instance;
