@@ -400,6 +400,7 @@ MonoBehaviour:
   - {fileID: -8398314036626900598}
   - {fileID: -8855570233735119127}
   - {fileID: -2170949849115371953}
+  - {fileID: 6804985868047641750}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -1458,6 +1459,28 @@ MonoBehaviour:
   company: Meta
   priority: 0
   targetOpenXRApiVersion: 1.1.45
+  required: 0
+  customRuntimeLoaderName: 
+--- !u!114 &6804985868047641750
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d443795b7c875f099136cd3c17b9580, type: 3}
+  m_Name: TriggerOpenXRFeature Android
+  m_EditorClassIdentifier: 
+  m_enabled: 1
+  nameUi: DFU Quest3 Native Trigger Reader
+  version: 0.0.1
+  featureIdInternal: com.dfworkshop.dfuquest3.trigger
+  openxrExtensionStrings: 
+  company: DFU Quest3
+  priority: 0
+  targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
 --- !u!114 &7053352652955740741

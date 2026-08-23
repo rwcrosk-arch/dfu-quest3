@@ -184,14 +184,20 @@ namespace DFUQuest3
         protected override void OnSessionCreate(ulong xrSession)
         {
             sessionHandle = xrSession;
+            Debug.Log("[DFUQuest3] TriggerOpenXRFeature OnSessionCreate session=" + xrSession + " created=" + created);
             CreateActions();
         }
 
         void CreateActions()
         {
-            if (created || createActionSet == null) return;
+            if (created || createActionSet == null)
+            {
+                Debug.Log("[DFUQuest3] TriggerOpenXRFeature CreateActions skip: created=" + created + " createActionSet=" + (createActionSet != null));
+                return;
+            }
             try
             {
+                Debug.Log("[DFUQuest3] TriggerOpenXRFeature CreateActions start");
                 var setInfo = new XrActionSetCreateInfo
                 {
                     type = XR_TYPE_ACTION_SET_CREATE_INFO,
@@ -200,7 +206,8 @@ namespace DFUQuest3
                 };
                 ulong set = 0;
                 int rc = createActionSet(instanceHandle, StructPtr(setInfo), out set);
-                if (rc != 0) { Debug.LogError("[DFUQuest3] xrCreateActionSet rc=" + rc); return; }
+                Debug.Log("[DFUQuest3] xrCreateActionSet rc=" + rc);
+                if (rc != 0) { Debug.LogError("[DFUQuest3] xrCreateActionSet failed rc=" + rc); return; }
                 actionSet = set;
 
                 var actInfo = new XrActionCreateInfo
@@ -211,13 +218,14 @@ namespace DFUQuest3
                     actionType = XR_ACTION_TYPE_BOOLEAN_INPUT
                 };
                 rc = createAction(actionSet, StructPtr(actInfo), out actionTrigger);
-                if (rc != 0) { Debug.LogError("[DFUQuest3] xrCreateAction rc=" + rc); return; }
+                Debug.Log("[DFUQuest3] xrCreateAction rc=" + rc);
+                if (rc != 0) { Debug.LogError("[DFUQuest3] xrCreateAction failed rc=" + rc); return; }
 
                 created = true;
                 BindTriggerToInteractionProfile();
                 Debug.Log("[DFUQuest3] TriggerOpenXRFeature: action set + trigger created");
             }
-            catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature CreateActions: " + e); }
+            catch (Exception e) { Debug.LogError("[DFUQuest3] TriggerOpenXRFeature CreateActions EX: " + e); }
         }
 
         void BindTriggerToInteractionProfile()
