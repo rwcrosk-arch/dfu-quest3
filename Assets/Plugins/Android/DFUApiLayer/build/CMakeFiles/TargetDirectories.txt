@@ -1,3 +1,0 @@
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Assets/Plugins/Android/DFUApiLayer/build/CMakeFiles/dfutrigger_layer.dir
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Assets/Plugins/Android/DFUApiLayer/build/CMakeFiles/edit_cache.dir
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Assets/Plugins/Android/DFUApiLayer/build/CMakeFiles/rebuild_cache.dir

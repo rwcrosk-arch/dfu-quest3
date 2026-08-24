@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Assets/Plugins/Android/DFUApiLayer/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
