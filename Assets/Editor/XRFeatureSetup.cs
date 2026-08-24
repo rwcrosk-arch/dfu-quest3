@@ -60,6 +60,20 @@ namespace DFUQuest3.EditorTools
                         Debug.Log("[XRFEATURE] Enabled " + name);
                     }
                 }
+                // Hand tracking — a SEPARATE device type from controllers. It may surface
+                // through Unity's input even though controllers don't (different OpenXR path).
+                // Quest 3 has excellent native hand tracking; pinch = click bypasses the
+                // controller-input wall entirely.
+                if (name.Contains("HandTracking") || name.Contains("PalmPose") ||
+                    name.Contains("HandCommonPoses") || name.Contains("MetaHandTrackingAim"))
+                {
+                    if (!f.enabled)
+                    {
+                        f.enabled = true;
+                        enabled++;
+                        Debug.Log("[XRFEATURE] Enabled " + name);
+                    }
+                }
             }
             Debug.Log("[XRFEATURE] enabled " + enabled + " profiles");
 
