@@ -1,0 +1,21 @@
+{
+    "file_format_version": "1.0.0",
+    "api_layer": {
+        "name": "XR_APILAYER_DFU_dfu_trigger_layer",
+        "library_path": "libdfutrigger_layer.so",
+        "api_version": "1.0",
+        "implementation_version": "1",
+        "description": "DFU Quest3 native OpenXR API layer: reads the real controller trigger and exposes it to DFU.",
+        "disable_environment": "DISABLE_DFU_TRIGGER_LAYER",
+        "instance_extensions": [
+            {
+                "name": "XR_KHR_vulkan_enable"
+            }
+        ],
+        "device_extensions": [
+            {
+                "name": "XR_KHR_vulkan_enable"
+            }
+        ]
+    }
+}
