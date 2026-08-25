@@ -228,6 +228,7 @@ static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
         return XR_SUCCESS;
     }
     XrResult res = g_nextCreateInstance(info, layerInfo, instance);
+    LOGI("chained create res=%d inst=%p", res, instance ? (void*)*instance : nullptr);
     if (XR_SUCCEEDED(res) && *instance != XR_NULL_HANDLE) {
         g_instance = *instance;
         resolveRuntimeFns();
