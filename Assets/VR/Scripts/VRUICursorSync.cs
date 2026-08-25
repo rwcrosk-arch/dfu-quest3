@@ -57,8 +57,10 @@ namespace DaggerfallWorkshop.Game
                     if (startWin != null)
                     {
                         var panel = startWin.NativePanel;
+                        var btn = startWin.newGameButton;
                         Debug.Log($"[DFUQuest3] CURSORDIAG screen={Screen.width}x{Screen.height} cursor={pos} " +
-                                  $"panelRect={panel.Rectangle} panelScale={panel.LocalScale}");
+                                  $"panelRect={panel.Rectangle} panelScale={panel.LocalScale} " +
+                                  $"newGameBtnRect={btn.Rectangle} btnScreenPos={btn.Position}");
                     }
                 }
             }
