@@ -15,6 +15,7 @@ namespace DFUQuest3
     public class VRTriggerBridge : MonoBehaviour
     {
         bool lastTrigger;
+        int clickHoldFrames;
 
         // Self-wire at runtime so VRSceneSetup.cs (and VRUIOverlay.cs) stay untouched.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -44,45 +45,29 @@ namespace DFUQuest3
             bool trigger = ReadTrigger();
             if (trigger && !lastTrigger)
             {
-                // Direct action: push the StartNewGameWizard window (same as the New Game
-                // button's OnMouseClick). This bypasses the fragile single-shot
-                // vrClickQueued + mouse-over mechanism that never lands on the button.
-                TryDirectNewGame();
+                // Set the click flag and HOLD it for a few frames. The single-shot flag is
+                // consumed by the first GetMouseButtonDown(0) call, which may run on a frame
+                // where the button's mouseOverComponent is still false (frame-order race).
+                // Holding it lets the click land on a frame where the button is hovered.
+                clickHoldFrames = 3;
                 var im = InputManager.Instance;
                 if (im != null)
                 {
                     im.vrClickQueued = true;
-                    Debug.Log("[DFUQuest3] TriggerBridge: click queued");
+                    Debug.Log("[DFUQuest3] TriggerBridge: click queued (hold 3)");
                 }
+            }
+            else if (clickHoldFrames > 0)
+            {
+                // Re-assert the flag on subsequent frames so it isn't lost to the race.
+                clickHoldFrames--;
+                var im = InputManager.Instance;
+                if (im != null) im.vrClickQueued = true;
             }
             lastTrigger = trigger;
         }
 
         float hb = 0f;
-
-        // Directly push the StartNewGameWizard window (same as the New Game button's
-        // OnMouseClick handler). Bypasses the fragile mouse-over + single-shot flag path.
-        void TryDirectNewGame()
-        {
-            try
-            {
-                var uiMgr = DaggerfallUI.UIManager;
-                if (uiMgr == null) return;
-                var top = uiMgr.TopWindow;
-                if (top is DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallStartWindow)
-                {
-                    uiMgr.PushWindow(
-                        DaggerfallWorkshop.Game.UserInterfaceWindows.UIWindowFactory.GetInstance(
-                            DaggerfallWorkshop.Game.UserInterfaceWindows.UIWindowType.StartNewGameWizard,
-                            uiMgr));
-                    Debug.Log("[DFUQuest3] TriggerBridge: pushed StartNewGameWizard directly");
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.Log("[DFUQuest3] TriggerBridge: direct newgame failed: " + e.Message);
-            }
-        }
 
         bool ReadTrigger()
         {
