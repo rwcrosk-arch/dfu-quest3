@@ -92,6 +92,11 @@ namespace DaggerfallWorkshop.Game
         KeyCode[] joystickUICache = new KeyCode[4]; //leftClick, rightClick, MiddleClick, Back
         // VR controller trigger click flag — set by VRPlayerInput to synthesize a left click.
         public bool vrClickQueued = false;
+
+        // VR override: additive VR scripts set this to the current reticle position in
+        // screen pixels. When set, MousePosition returns this instead of Unity's
+        // Input.mousePosition so DFU's UI hit-testing follows the VR cursor.
+        public Vector3? vrMousePosition = null;
         String[] cameraAxisBindingCache = new String[2];
         String[] movementAxisBindingCache = new String[2];
         Dictionary<int, bool> modifierHeldFirstDict = new Dictionary<int, bool>();
@@ -269,6 +274,8 @@ namespace DaggerfallWorkshop.Game
         {
             get
             {
+                if (vrMousePosition.HasValue)
+                    return vrMousePosition.Value;
                 if (UsingController)
                     return controllerCursorPosition;
                 else

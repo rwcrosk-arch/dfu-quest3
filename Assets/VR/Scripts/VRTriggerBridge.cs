@@ -62,6 +62,7 @@ namespace DFUQuest3
             //    The OpenXR InputSystem driver only submits state when an action set with
             //    bindings is enabled — the empty default asset never did, so devices
             //    registered but no values flowed. This action drives the real trigger.
+            //    Use WasPressedThisFrame (edge) so it fires ONCE per press, not continuously.
             try
             {
                 if (VRActionBinder.TriggerAction != null && VRActionBinder.TriggerAction.enabled)
