@@ -155,12 +155,23 @@ static XrResult getInstanceProcAddr(XrInstance instance, const char* name, PFN_x
 }
 
 // ---------------------------------------------------------------------------
-// createApiLayerInstance intercept: capture instance handle, chain to next
+// createApiLayerInstance intercept: capture the NEXT layer/runtime function pointers
+// from the chain, then forward. This is REQUIRED — without it, our chained calls
+// dereference null and the app crashes at OpenXR init (we saw SIGSEGV).
 // ---------------------------------------------------------------------------
 static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
                                        const XrApiLayerCreateInfo* layerInfo,
                                        XrInstance* instance)
 {
+    // Grab the next link in the chain (the runtime or the layer below us).
+    if (layerInfo != nullptr && layerInfo->nextInfo != nullptr) {
+        g_nextGetProcAddr = layerInfo->nextInfo->nextGetInstanceProcAddr;
+        g_nextCreateInstance = layerInfo->nextInfo->nextCreateApiLayerInstance;
+    }
+    if (g_nextCreateInstance == nullptr) {
+        LOGE("nextCreateApiLayerInstance is null; cannot chain");
+        return XR_ERROR_INITIALIZATION_FAILED;
+    }
     XrResult res = g_nextCreateInstance(info, layerInfo, instance);
     if (XR_SUCCEEDED(res) && *instance != XR_NULL_HANDLE) g_instance = *instance;
     return res;
