@@ -22,6 +22,11 @@ namespace DFUQuest3
             DontDestroyOnLoad(go);
         }
 
+        void Awake()
+        {
+            Debug.Log("[DFUQuest3] HandTrackingProbe wired");
+        }
+
         void Update()
         {
             timer -= Time.unscaledDeltaTime;
@@ -30,6 +35,7 @@ namespace DFUQuest3
 
             var devices = new List<InputDevice>();
             InputDevices.GetDevices(devices);
+            Debug.Log("[DFUQuest3] HandTrackingProbe: " + devices.Count + " devices");
             foreach (var d in devices)
             {
                 bool isHand = (d.characteristics & InputDeviceCharacteristics.HandTracking) != 0;

@@ -58,7 +58,24 @@ namespace DFUQuest3
 
         bool ReadTrigger()
         {
-            // 0) InputSystem XR devices — the trigger control is an ANALOG AxisControl
+            // 0) NEW: the VRActionBinder action (the orchestrator-verified root-cause fix).
+            //    The OpenXR InputSystem driver only submits state when an action set with
+            //    bindings is enabled — the empty default asset never did, so devices
+            //    registered but no values flowed. This action drives the real trigger.
+            try
+            {
+                if (VRActionBinder.TriggerAction != null && VRActionBinder.TriggerAction.enabled)
+                {
+                    if (VRActionBinder.TriggerAction.WasPressedThisFrame())
+                    {
+                        Debug.Log("[DFUQuest3] TriggerBridge: VRActionBinder Trigger pressed");
+                        return true;
+                    }
+                }
+            }
+            catch { }
+
+            // 1) InputSystem XR devices — the trigger control is an ANALOG AxisControl
             //    (0-1), not a ButtonControl. Reading it as ButtonControl throws
             //    InvalidOperationException every frame, so read it as an axis.
             try
