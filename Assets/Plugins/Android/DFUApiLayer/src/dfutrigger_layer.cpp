@@ -218,6 +218,8 @@ static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
         g_nextGetProcAddr = layerInfo->nextInfo->nextGetInstanceProcAddr;
         g_nextCreateInstance = layerInfo->nextInfo->nextCreateApiLayerInstance;
     }
+    LOGI("nextInfo=%p nextGet=%p nextCreate=%p", layerInfo ? (void*)layerInfo->nextInfo : nullptr,
+         (void*)g_nextGetProcAddr, (void*)g_nextCreateInstance);
     // During extension enumeration the loader probes with a null next — gracefully
     // succeed and let the loader continue. Only the real chain has a nextCreateInstance.
     if (g_nextCreateInstance == nullptr) {
