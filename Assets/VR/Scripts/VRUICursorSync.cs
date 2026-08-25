@@ -50,7 +50,7 @@ namespace DaggerfallWorkshop.Game
             if (diagTimer <= 0f)
             {
                 diagTimer = 2f;
-                var uiMgr = DaggerfallUI.Instance?.UIManager;
+                var uiMgr = DaggerfallUI.UIManager;
                 if (uiMgr != null)
                 {
                     var startWin = uiMgr.TopWindow as DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallStartWindow;
