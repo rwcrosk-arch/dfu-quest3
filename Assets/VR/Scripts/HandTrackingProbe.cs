@@ -46,11 +46,10 @@ namespace DFUQuest3
                 bool hasRot = d.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion rot);
 
                 // Pinch / select gesture (the "click")
-                bool hasSelect = d.TryGetFeatureValue(CommonUsages.select, out bool select);
                 bool hasTrigger = d.TryGetFeatureValue(CommonUsages.trigger, out float trig);
 
-                Debug.Log($"[DFUQuest3] HAND device '{d.name}' pos={hasPos} rot={hasRot} select={hasSelect} trig={hasTrigger} " +
-                          $"posVal={pos} rotVal={rot.eulerAngles} selectVal={select} trigVal={trig}");
+                Debug.Log($"[DFUQuest3] HAND device '{d.name}' pos={hasPos} rot={hasRot} trig={hasTrigger} " +
+                          $"posVal={pos} rotVal={rot.eulerAngles} trigVal={trig}");
             }
         }
     }
