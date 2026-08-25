@@ -44,6 +44,10 @@ namespace DFUQuest3
             bool trigger = ReadTrigger();
             if (trigger && !lastTrigger)
             {
+                // Direct action: push the StartNewGameWizard window (same as the New Game
+                // button's OnMouseClick). This bypasses the fragile single-shot
+                // vrClickQueued + mouse-over mechanism that never lands on the button.
+                TryDirectNewGame();
                 var im = InputManager.Instance;
                 if (im != null)
                 {
@@ -55,6 +59,30 @@ namespace DFUQuest3
         }
 
         float hb = 0f;
+
+        // Directly push the StartNewGameWizard window (same as the New Game button's
+        // OnMouseClick handler). Bypasses the fragile mouse-over + single-shot flag path.
+        void TryDirectNewGame()
+        {
+            try
+            {
+                var uiMgr = DaggerfallUI.UIManager;
+                if (uiMgr == null) return;
+                var top = uiMgr.TopWindow;
+                if (top is DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallStartWindow)
+                {
+                    uiMgr.PushWindow(
+                        DaggerfallWorkshop.Game.UserInterfaceWindows.UIWindowFactory.GetInstance(
+                            DaggerfallWorkshop.Game.UserInterfaceWindows.UIWindowType.StartNewGameWizard,
+                            uiMgr));
+                    Debug.Log("[DFUQuest3] TriggerBridge: pushed StartNewGameWizard directly");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.Log("[DFUQuest3] TriggerBridge: direct newgame failed: " + e.Message);
+            }
+        }
 
         bool ReadTrigger()
         {
