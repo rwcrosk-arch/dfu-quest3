@@ -212,19 +212,24 @@ static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
                                        const XrApiLayerCreateInfo* layerInfo,
                                        XrInstance* instance)
 {
+    LOGI("createApiLayerInstance called");
     // Grab the next link in the chain (the runtime or the layer below us).
     if (layerInfo != nullptr && layerInfo->nextInfo != nullptr) {
         g_nextGetProcAddr = layerInfo->nextInfo->nextGetInstanceProcAddr;
         g_nextCreateInstance = layerInfo->nextInfo->nextCreateApiLayerInstance;
     }
+    // During extension enumeration the loader probes with a null next — gracefully
+    // succeed and let the loader continue. Only the real chain has a nextCreateInstance.
     if (g_nextCreateInstance == nullptr) {
-        LOGE("nextCreateApiLayerInstance is null; cannot chain");
-        return XR_ERROR_INITIALIZATION_FAILED;
+        LOGI("createApiLayerInstance: probe (no next) — success, no chain");
+        if (instance != nullptr) *instance = XR_NULL_HANDLE;
+        return XR_SUCCESS;
     }
     XrResult res = g_nextCreateInstance(info, layerInfo, instance);
     if (XR_SUCCEEDED(res) && *instance != XR_NULL_HANDLE) {
         g_instance = *instance;
         resolveRuntimeFns();
+        LOGI("createApiLayerInstance: real instance %p, chained ok", (void*)*instance);
     }
     return res;
 }
