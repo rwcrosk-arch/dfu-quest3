@@ -45,6 +45,11 @@ static PFN_xrBeginSession                      real_BeginSession = nullptr;
 
 #define TRIGGER_FILE "/data/data/com.dfworkshop.dfuquest3/files/trigger_state.txt"
 
+static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
+                                       const XrApiLayerCreateInfo* layerInfo,
+                                       XrInstance* instance); // forward decl
+static XrResult getInstanceProcAddr(XrInstance instance, const char* name, PFN_xrVoidFunction* function); // forward decl
+
 static void write_trigger_file(int val) {
     FILE* f = fopen(TRIGGER_FILE, "w");
     if (f) { fprintf(f, "%d\n", val); fclose(f); }
@@ -147,6 +152,17 @@ static XrResult wrap_xrBeginSession(XrSession session, const XrSessionBeginInfo*
 // ---------------------------------------------------------------------------
 static XrResult getInstanceProcAddr(XrInstance instance, const char* name, PFN_xrVoidFunction* function)
 {
+    // Negotiation phase: the loader calls our getInstanceProcAddr with XR_NULL_HANDLE to
+    // fetch our own create/instance functions BEFORE createApiLayerInstance is called (so
+    // the chain isn't captured yet). In that phase we MUST return our own functions for the
+    // names we implement, not chain.
+    if (instance == XR_NULL_HANDLE) {
+        if (strcmp(name, "xrCreateApiLayerInstance") == 0) { *function = (PFN_xrVoidFunction)&createApiLayerInstance; return XR_SUCCESS; }
+        if (strcmp(name, "xrGetInstanceProcAddr") == 0) { *function = (PFN_xrVoidFunction)&getInstanceProcAddr; return XR_SUCCESS; }
+        return XR_ERROR_HANDLE_INVALID;
+    }
+    // Normal phase: chain to the next layer/runtime, then wrap what we care about.
+    if (g_nextGetProcAddr == nullptr) return XR_ERROR_HANDLE_INVALID;
     XrResult res = g_nextGetProcAddr(instance, name, function);
     if (XR_FAILED(res)) return res;
     if (strcmp(name, "xrSyncActions") == 0) *function = (PFN_xrVoidFunction)&wrap_xrSyncActions;
