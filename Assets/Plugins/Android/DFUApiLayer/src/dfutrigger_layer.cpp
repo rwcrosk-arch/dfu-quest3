@@ -229,6 +229,14 @@ static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
     }
     XrResult res = g_nextCreateInstance(info, layerInfo, instance);
     LOGI("chained create res=%d inst=%p", res, instance ? (void*)*instance : nullptr);
+    // Extension-enumeration probes: the runtime's chained create fails with
+    // INITIALIZATION_FAILED because there's no graphics device yet. Returning that failure
+    // makes the loader destroy our layer. Instead, swallow it as a probe (no instance) so
+    // the loader keeps us for the real session.
+    if (XR_FAILED(res) && (instance == nullptr || *instance == XR_NULL_HANDLE)) {
+        if (instance != nullptr) *instance = XR_NULL_HANDLE;
+        return XR_SUCCESS;
+    }
     if (XR_SUCCEEDED(res) && *instance != XR_NULL_HANDLE) {
         g_instance = *instance;
         resolveRuntimeFns();
