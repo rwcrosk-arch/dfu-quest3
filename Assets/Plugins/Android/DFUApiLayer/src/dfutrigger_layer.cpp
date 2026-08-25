@@ -39,9 +39,10 @@ static PFN_xrCreateAction                      real_CreateAction = nullptr;
 static PFN_xrStringToPath                      real_StringToPath = nullptr;
 static PFN_xrSuggestInteractionProfileBindings real_SuggestBindings = nullptr;
 static PFN_xrAttachSessionActionSets           real_AttachSessionActionSets = nullptr;
-static PFN_xrSyncActions                       real_SyncActions = nullptr;
-static PFN_xrGetActionStateBoolean             real_GetActionStateBoolean = nullptr;
-static PFN_xrBeginSession                      real_BeginSession = nullptr;
+static PFN_xrSyncActions                           real_SyncActions = nullptr;
+static PFN_xrGetActionStateBoolean                 real_GetActionStateBoolean = nullptr;
+static PFN_xrBeginSession                          real_BeginSession = nullptr;
+static PFN_xrCreateSession                         real_CreateSession = nullptr;
 
 #define TRIGGER_FILE "/data/data/com.dfworkshop.dfuquest3/files/trigger_state.txt"
 
@@ -53,6 +54,25 @@ static XrResult getInstanceProcAddr(XrInstance instance, const char* name, PFN_x
 static void write_trigger_file(int val) {
     FILE* f = fopen(TRIGGER_FILE, "w");
     if (f) { fprintf(f, "%d\n", val); fclose(f); }
+}
+
+// Resolve all runtime function pointers via the chained getInstanceProcAddr. Must run
+// as soon as g_instance is known (before any session create), so our wraps can chain.
+static void resolveRuntimeFns()
+{
+    if (real_CreateActionSet != nullptr) return;
+    if (g_instance == XR_NULL_HANDLE || g_nextGetProcAddr == nullptr) return;
+    g_nextGetProcAddr(g_instance, "xrCreateActionSet", (PFN_xrVoidFunction*)&real_CreateActionSet);
+    g_nextGetProcAddr(g_instance, "xrCreateAction", (PFN_xrVoidFunction*)&real_CreateAction);
+    g_nextGetProcAddr(g_instance, "xrStringToPath", (PFN_xrVoidFunction*)&real_StringToPath);
+    g_nextGetProcAddr(g_instance, "xrSuggestInteractionProfileBindings", (PFN_xrVoidFunction*)&real_SuggestBindings);
+    g_nextGetProcAddr(g_instance, "xrAttachSessionActionSets", (PFN_xrVoidFunction*)&real_AttachSessionActionSets);
+    g_nextGetProcAddr(g_instance, "xrSyncActions", (PFN_xrVoidFunction*)&real_SyncActions);
+    g_nextGetProcAddr(g_instance, "xrGetActionStateBoolean", (PFN_xrVoidFunction*)&real_GetActionStateBoolean);
+    g_nextGetProcAddr(g_instance, "xrBeginSession", (PFN_xrVoidFunction*)&real_BeginSession);
+    g_nextGetProcAddr(g_instance, "xrCreateSession", (PFN_xrVoidFunction*)&real_CreateSession);
+    if (!real_CreateActionSet) LOGE("could not resolve runtime action fns");
+    else LOGI("resolved runtime fns");
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +88,7 @@ static void setupTrigger(XrSession session)
         g_nextGetProcAddr(g_instance, "xrAttachSessionActionSets", (PFN_xrVoidFunction*)&real_AttachSessionActionSets);
         g_nextGetProcAddr(g_instance, "xrSyncActions", (PFN_xrVoidFunction*)&real_SyncActions);
         g_nextGetProcAddr(g_instance, "xrGetActionStateBoolean", (PFN_xrVoidFunction*)&real_GetActionStateBoolean);
+        g_nextGetProcAddr(g_instance, "xrCreateSession", (PFN_xrVoidFunction*)&real_CreateSession);
         if (!real_CreateActionSet) { LOGE("could not resolve runtime action fns"); return; }
     }
 
@@ -147,6 +168,17 @@ static XrResult wrap_xrBeginSession(XrSession session, const XrSessionBeginInfo*
     return real_BeginSession(session, beginInfo);
 }
 
+// wrapped xrCreateSession: capture the session handle (needed to attach action sets)
+static XrResult wrap_xrCreateSession(XrInstance instance, const XrSessionCreateInfo* createInfo, XrSession* session)
+{
+    XrResult res = real_CreateSession(instance, createInfo, session);
+    if (XR_SUCCEEDED(res) && *session != XR_NULL_HANDLE) {
+        g_session = *session;
+        LOGI("captured session %p", (void*)*session);
+    }
+    return res;
+}
+
 // ---------------------------------------------------------------------------
 // getInstanceProcAddr intercept: wrap the commands we care about
 // ---------------------------------------------------------------------------
@@ -167,6 +199,7 @@ static XrResult getInstanceProcAddr(XrInstance instance, const char* name, PFN_x
     if (XR_FAILED(res)) return res;
     if (strcmp(name, "xrSyncActions") == 0) *function = (PFN_xrVoidFunction)&wrap_xrSyncActions;
     else if (strcmp(name, "xrBeginSession") == 0) *function = (PFN_xrVoidFunction)&wrap_xrBeginSession;
+    else if (strcmp(name, "xrCreateSession") == 0) *function = (PFN_xrVoidFunction)&wrap_xrCreateSession;
     return res;
 }
 
@@ -189,7 +222,10 @@ static XrResult createApiLayerInstance(const XrInstanceCreateInfo* info,
         return XR_ERROR_INITIALIZATION_FAILED;
     }
     XrResult res = g_nextCreateInstance(info, layerInfo, instance);
-    if (XR_SUCCEEDED(res) && *instance != XR_NULL_HANDLE) g_instance = *instance;
+    if (XR_SUCCEEDED(res) && *instance != XR_NULL_HANDLE) {
+        g_instance = *instance;
+        resolveRuntimeFns();
+    }
     return res;
 }
 
