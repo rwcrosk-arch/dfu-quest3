@@ -107,9 +107,9 @@ namespace DaggerfallWorkshop.Game.Utility
 
         void Awake()
         {
-            // Get player objects
-            player = FindPlayer();
-            playerEnterExit = FindPlayerEnterExit(player);
+            // Get player objects (guarded: the VR startup scene has no Player/PlayerEnterExit)
+            try { player = FindPlayer(); playerEnterExit = FindPlayerEnterExit(player); }
+            catch (System.Exception ex) { Debug.LogWarning($"[StartGameBehaviour] No player yet (startup scene): {ex.Message}"); }
 
             // Assign default player equipment & spells allocation methods
             AssignStartingEquipment = DaggerfallUnity.Instance.ItemHelper.AssignStartingGear;
@@ -118,18 +118,55 @@ namespace DaggerfallWorkshop.Game.Utility
 
         void Start()
         {
-            ApplyStartSettings();
+            // ApplyStartSettings touches GameManager.Instance.StreamingWorld (null in the
+            // VR startup scene) — only run it when the world is actually present.
+            if (GameManager.Instance != null && GameManager.Instance.StreamingWorld != null)
+                ApplyStartSettings();
             SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;
         }
 
         void Update()
         {
-            // Restart game using method provided
+            // Restart game using method provided.
+            // Guarded for the VR startup scene (no Player there). In the game scene the
+            // real Player object spawns AFTER this Awake ran, so resolve it lazily instead
+            // of trusting a stale null from Awake — otherwise StartMethod=NewCharacter
+            // would never fire (player field stuck null → black screen after creation).
             if (StartMethod != StartMethods.DoNothing)
             {
-                GameManager.Instance.PauseGame(true);
-                InvokeStartMethod();
+                if (player == null && GameManager.Instance != null)
+                    player = GameManager.Instance.PlayerObject;
+                if (player == null) return;   // Player not up yet — try again next frame
+
+                // GameManager.Instance.PlayerEnterExit getter THROWS (via GetComponentFromObject)
+                // rather than returning null if the Player lacks the component yet. Guard it
+                // with try/catch so a mid-race frame doesn't abort the start every frame.
+                bool ready = false;
+                try
+                {
+                    ready = GameManager.Instance != null &&
+                            GameManager.Instance.PlayerEnterExit != null &&
+                            GameManager.Instance.StreamingWorld != null;
+                }
+                catch (System.Exception)
+                {
+                    ready = false;   // Player/PlayerEnterExit/StreamingWorld not all up yet
+                }
+                if (!ready) return;
+
+                // Reset StartMethod BEFORE invoking so a mid-start exception (e.g. a
+                // missing asset during StartNewCharacter) can't leave it set and cause an
+                // infinite retry loop every frame.
+                var method = StartMethod;
                 StartMethod = StartMethods.DoNothing;
+                GameManager.Instance.PauseGame(true);
+                try { InvokeStartMethod(method); }
+                catch (System.Exception ex)
+                {
+                    Debug.LogError($"[StartGameBehaviour] {method} failed: {ex}");
+                    GameManager.Instance.PauseGame(false);
+                    DaggerfallUI.PostMessage(PostStartMessage);
+                }
             }
         }
 
@@ -137,7 +174,7 @@ namespace DaggerfallWorkshop.Game.Utility
 
         #region Private Methods
 
-        void InvokeStartMethod()
+        void InvokeStartMethod(StartMethods method)
         {
             // Disable parent GameObjects - the appropriate parent GameObject will be re-enabled by following startup process
             // This mainly just prevents all SongPlayers from starting at once
@@ -146,7 +183,11 @@ namespace DaggerfallWorkshop.Game.Utility
             // Provide hero's gender to the grammar processor
             GrammarManager.grammarProcessor.SetHeroGenderGetter(() => GameManager.Instance.PlayerEntity.Gender);
 
-            switch (StartMethod)
+            // NOTE: dispatch on the `method` PARAMETER, not the StartMethod field — the
+            // field was already reset to DoNothing by Update() before invoking (to prevent
+            // an infinite retry loop if a start throws). Switching on the field would hit
+            // `default` and never start the game.
+            switch (method)
             {
                 case StartMethods.Void:
                     StartVoid();

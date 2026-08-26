@@ -101,7 +101,16 @@ namespace DaggerfallWorkshop.Game.Questing
         /// </summary>
         public string QuestPacksFolder
         {
-            get { return Path.Combine(Application.streamingAssetsPath, QuestPacksFolderName); }
+            get
+            {
+#if UNITY_ANDROID
+                // On Android, Application.streamingAssetsPath is a jar: URI that System.IO
+                // cannot enumerate. Redirect through the VR extraction helper (real filesystem).
+                return Path.Combine(DFUQuest3.AndroidStreamingAssets.Resolve(), QuestPacksFolderName);
+#else
+                return Path.Combine(Application.streamingAssetsPath, QuestPacksFolderName);
+#endif
+            }
         }
 
         public void DiscoverQuestPackLists()

@@ -228,7 +228,8 @@ namespace DaggerfallWorkshop.Game
                 ChangeInteractionMode(PlayerActivateModes.Talk);
 
             // Do not do scene activation if player has cursor active over large HUD
-            if (GameManager.Instance.PlayerMouseLook.cursorActive &&
+            var pml = GameManager.Instance.PlayerMouseLook;
+            if (pml != null && pml.cursorActive &&
                 DaggerfallUI.Instance.DaggerfallHUD != null &&
                 DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ActiveMouseOverLargeHUD)
             {
@@ -281,7 +282,8 @@ namespace DaggerfallWorkshop.Game
             {
                 // Fire ray into scene from active mouse cursor or camera
                 Ray ray = new Ray();
-                if (GameManager.Instance.PlayerMouseLook.cursorActive)
+                var pml2 = GameManager.Instance.PlayerMouseLook;
+                if (pml2 != null && pml2.cursorActive)
                 {
                     if (DaggerfallUnity.Settings.RetroRenderingMode > 0)
                     {

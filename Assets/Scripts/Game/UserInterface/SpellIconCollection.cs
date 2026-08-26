@@ -228,7 +228,13 @@ namespace DaggerfallWorkshop.Game.UserInterface
         void LoadSpellIconPacks()
         {
             // Start with all the atlases in the spell icons streaming assets path
-            string sourcePath = Path.Combine(Application.streamingAssetsPath, sourceFolderName);
+            string sourcePath = Path.Combine(
+#if UNITY_ANDROID
+                DFUQuest3.AndroidStreamingAssets.Resolve(),
+#else
+                Application.streamingAssetsPath,
+#endif
+                sourceFolderName);
             string[] atlasPaths = Directory.GetFiles(sourcePath, "*.png");
             if (atlasPaths != null && atlasPaths.Length != 0)
             {

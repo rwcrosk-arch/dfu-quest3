@@ -15,6 +15,7 @@ namespace DFUQuest3
     {
         public static InputAction TriggerAction { get; private set; }
         public static InputAction PinchAction { get; private set; }
+        public static InputAction MoveAction { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
@@ -40,8 +41,14 @@ namespace DFUQuest3
             pinch.AddBinding("<MetaAimHand>{RightHand}/select");
             pinch.AddBinding("<XRHand>{RightHand}/select");
 
+            // Move (left thumbstick) — drives DFU locomotion via InputManager.vrMoveStick.
+            var move = map.AddAction("Move", InputActionType.Value);
+            move.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/thumbstick");
+            move.AddBinding("<XRController>{LeftHand}/thumbstick");
+
             TriggerAction = trig;
             PinchAction = pinch;
+            MoveAction = move;
             map.Enable();
 
             Debug.Log("[DFUQuest3] VRActionBinder: built + enabled VR action map");

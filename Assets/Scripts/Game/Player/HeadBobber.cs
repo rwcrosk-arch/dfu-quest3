@@ -78,9 +78,10 @@ namespace DaggerfallWorkshop.Game
 
         void Update()
         {
+            var pml = GameManager.Instance.PlayerMouseLook;
             if (!DaggerfallUnity.Settings.HeadBobbing ||
                 GameManager.Instance.PlayerEntity.CurrentHealth < 1 ||
-                GameManager.Instance.PlayerMouseLook.cursorActive ||
+                (pml != null && pml.cursorActive) ||
                 GameManager.IsGamePaused ||
                 climbingMotor.IsClimbing ||
 			    !playerMotor.IsGrounded)

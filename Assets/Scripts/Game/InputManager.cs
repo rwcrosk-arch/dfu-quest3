@@ -97,6 +97,11 @@ namespace DaggerfallWorkshop.Game
         // screen pixels. When set, MousePosition returns this instead of Unity's
         // Input.mousePosition so DFU's UI hit-testing follows the VR cursor.
         public Vector3? vrMousePosition = null;
+
+        // VR locomotion override: additive VR scripts set this to the left-thumbstick
+        // (x = strafe, y = forward/back). When non-zero, Horizontal/Vertical return this
+        // instead of the keyboard/joystick axes so the XR stick drives PlayerMotor.
+        public Vector2 vrMoveStick = Vector2.zero;
         String[] cameraAxisBindingCache = new String[2];
         String[] movementAxisBindingCache = new String[2];
         Dictionary<int, bool> modifierHeldFirstDict = new Dictionary<int, bool>();
@@ -222,12 +227,24 @@ namespace DaggerfallWorkshop.Game
 
         public float Horizontal
         {
-            get { return Mathf.Clamp((horizontal < -deadZone || horizontal > deadZone) ? horizontal : 0, -negHorizontalLimit, posHorizontalLimit); }
+            get
+            {
+                // VR locomotion override: when the XR stick is active, drive from it.
+                if (vrMoveStick.sqrMagnitude > 0.0001f)
+                    return Mathf.Clamp(vrMoveStick.x, -1, 1);
+                return Mathf.Clamp((horizontal < -deadZone || horizontal > deadZone) ? horizontal : 0, -negHorizontalLimit, posHorizontalLimit);
+            }
         }
 
         public float Vertical
         {
-            get { return Mathf.Clamp((vertical < -deadZone || vertical > deadZone) ? vertical : 0, -negVerticalLimit, posVerticalLimit); }
+            get
+            {
+                // VR locomotion override: when the XR stick is active, drive from it.
+                if (vrMoveStick.sqrMagnitude > 0.0001f)
+                    return Mathf.Clamp(vrMoveStick.y, -1, 1);
+                return Mathf.Clamp((vertical < -deadZone || vertical > deadZone) ? vertical : 0, -negVerticalLimit, posVerticalLimit);
+            }
         }
 
         public bool ToggleAutorun { get; set; }
@@ -562,6 +579,17 @@ namespace DaggerfallWorkshop.Game
 
             // Apply friction to movement force
             ApplyFriction();
+        }
+
+        void LateUpdate()
+        {
+            // Clear the VR click flag at end of frame. It is intentionally NOT consumed
+            // inside GetMouseButtonDown so every component in the UI tree (parent panel
+            // AND hovered button) sees the same click on the same frame. Clearing here
+            // (after all Updates) makes it frame-sticky: if the trigger is pulled a frame
+            // before the cursor settles on the button, the flag stays set until the button
+            // is hovered and fires.
+            vrClickQueued = false;
         }
 
         void OnGUI()
@@ -1060,11 +1088,16 @@ namespace DaggerfallWorkshop.Game
         {
             // VR trigger injection: VRPlayerInput sets this flag to synthesize a
             // controller-trigger click that flows through DFU's normal mouse path.
+            // NOTE: the flag is NOT consumed here. It stays set for the whole frame so
+            // every component in the UI tree (parent panel AND hovered button) sees the
+            // same click. It is cleared at end of frame in LateUpdate. Consuming it here
+            // meant the parent panel's own GetMouseButtonDown(0) call (BaseScreenComponent
+            // line ~626, which runs before child buttons) ate the flag before the button's
+            // Update ran, so the button never fired. Only the hovered button
+            // (mouseOverComponent) actually fires OnMouseClick, so the panel seeing it is
+            // harmless.
             if (button == 0 && vrClickQueued)
-            {
-                vrClickQueued = false;
                 return true;
-            }
             return Input.GetMouseButtonDown(button) || (EnableController && GetKeyDown(joystickUICache[button], false));
         }
 

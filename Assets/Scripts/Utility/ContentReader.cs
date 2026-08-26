@@ -272,7 +272,13 @@ namespace DaggerfallWorkshop.Utility
         /// <returns>Full path to file.</returns>
         public string GetFactionFilePath()
         {
-            string path = Path.Combine(Application.streamingAssetsPath, "Factions");
+            string path = Path.Combine(
+#if UNITY_ANDROID
+                DFUQuest3.AndroidStreamingAssets.Resolve(),
+#else
+                Application.streamingAssetsPath,
+#endif
+                "Factions");
             return Path.Combine(path, FactionFile.Filename);
         }
 

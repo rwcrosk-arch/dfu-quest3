@@ -191,7 +191,7 @@ namespace DFUQuest3
                 // lock the ray at origin. Sanity-check before overriding head-gaze.
                 if (cp.sqrMagnitude < 0.001f || float.IsNaN(cr.x) || float.IsNaN(cr.y) || float.IsNaN(cr.z) || float.IsNaN(cr.w))
                     continue;
-                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.ButtonControl>("trigger") is var tc && tc != null)
+                if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.AxisControl>("trigger") is var tc && tc != null)
                     trigger = tc.ReadValue() > 0.5f;
                 origin = cp;
                 dir = cr * Vector3.forward;

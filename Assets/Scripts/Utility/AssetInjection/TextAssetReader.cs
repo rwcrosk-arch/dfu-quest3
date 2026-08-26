@@ -37,7 +37,13 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
             if (relativePath == null)
                 throw new ArgumentNullException("relativePath");
 
-            string path = Path.Combine(Application.streamingAssetsPath, relativePath);
+            string path = Path.Combine(
+#if UNITY_ANDROID
+                DFUQuest3.AndroidStreamingAssets.Resolve(),
+#else
+                Application.streamingAssetsPath,
+#endif
+                relativePath);
             if (File.Exists(path))
             {
                 content = File.ReadAllText(path);

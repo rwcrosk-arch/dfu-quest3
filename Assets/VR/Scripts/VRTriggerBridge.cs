@@ -15,7 +15,6 @@ namespace DFUQuest3
     public class VRTriggerBridge : MonoBehaviour
     {
         bool lastTrigger;
-        int clickHoldFrames;
 
         // Self-wire at runtime so VRSceneSetup.cs (and VRUIOverlay.cs) stay untouched.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -45,26 +44,51 @@ namespace DFUQuest3
             bool trigger = ReadTrigger();
             if (trigger && !lastTrigger)
             {
-                // Set the click flag and HOLD it for a few frames. The single-shot flag is
-                // consumed by the first GetMouseButtonDown(0) call, which may run on a frame
-                // where the button's mouseOverComponent is still false (frame-order race).
-                // Holding it lets the click land on a frame where the button is hovered.
-                clickHoldFrames = 3;
+                // Set the click flag ONCE on the rising edge. InputManager clears it in
+                // LateUpdate (frame-sticky), so every component in the UI tree sees the
+                // same click on the same frame — no need to hold it across frames. Holding
+                // it for 3 frames re-asserted the flag on 3 consecutive frames, which
+                // forced 3 presses per trigger pull.
                 var im = InputManager.Instance;
                 if (im != null)
                 {
                     im.vrClickQueued = true;
-                    Debug.Log("[DFUQuest3] TriggerBridge: click queued (hold 3)");
+                    Debug.Log("[DFUQuest3] TriggerBridge: click queued");
                 }
             }
-            else if (clickHoldFrames > 0)
-            {
-                // Re-assert the flag on subsequent frames so it isn't lost to the race.
-                clickHoldFrames--;
-                var im = InputManager.Instance;
-                if (im != null) im.vrClickQueued = true;
-            }
             lastTrigger = trigger;
+
+            // VR locomotion: feed the left thumbstick into InputManager.vrMoveStick so
+            // DFU's PlayerMotor (via InputManager.Horizontal/Vertical) moves the player.
+            // Only when the game is not paused (menus use the stick for cursor too).
+            var im2 = InputManager.Instance;
+            if (im2 != null)
+            {
+                Vector2 stick = Vector2.zero;
+                try
+                {
+                    if (VRActionBinder.MoveAction != null && VRActionBinder.MoveAction.enabled)
+                        stick = VRActionBinder.MoveAction.ReadValue<Vector2>();
+                }
+                catch { }
+                if (stick.sqrMagnitude < 0.0001f)
+                {
+                    // Fallback: read the XR controller thumbstick directly.
+                    try
+                    {
+                        foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
+                        {
+                            if (dev is UnityEngine.InputSystem.XR.XRController xrCtrl)
+                            {
+                                var ts = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.Vector2Control>("thumbstick");
+                                if (ts != null) { stick = ts.ReadValue(); break; }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                im2.vrMoveStick = stick;
+            }
         }
 
         float hb = 0f;

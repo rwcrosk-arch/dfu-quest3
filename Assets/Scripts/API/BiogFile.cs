@@ -41,7 +41,14 @@ namespace DaggerfallConnect.Arena2
 
         public static string BIOGSourceFolder
         {
+            // On Android, Application.streamingAssetsPath is a jar: URI that System.IO
+            // cannot enumerate. Redirect through the VR extraction helper (same as
+            // TextManager / DaggerfallUI.FontsFolder / QuestMachine already do).
+#if UNITY_ANDROID
+            get { return Path.Combine(DFUQuest3.AndroidStreamingAssets.Resolve(), biogSourceFolderName); }
+#else
             get { return Path.Combine(Application.streamingAssetsPath, biogSourceFolderName); }
+#endif
         }
 
         public BiogFile(CharacterDocument characterDocument)

@@ -45,7 +45,16 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         public const int AutoMapDataSize = 64 * 64;
         const int noReplacementIndicator = -1;
         const string worldData = "WorldData";
-        static readonly string worldDataPath = Path.Combine(Application.streamingAssetsPath, worldData);
+        // On Android, Application.streamingAssetsPath is a jar: URI that System.IO cannot
+        // enumerate (Directory.GetFiles throws). Redirect through the VR extraction helper
+        // (same as TextManager / DaggerfallUI.FontsFolder / QuestMachine / BiogFile).
+        static readonly string worldDataPath = Path.Combine(
+#if UNITY_ANDROID
+            DFUQuest3.AndroidStreamingAssets.Resolve(),
+#else
+            Application.streamingAssetsPath,
+#endif
+            worldData);
 
         // No replacement found indicator structures.
         static readonly DFRegion noReplacementRegion = new DFRegion() { LocationCount = 0 };    // Use 0 as it's a uint, and loc count should always be > 0
