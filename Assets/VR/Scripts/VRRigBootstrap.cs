@@ -52,6 +52,33 @@ namespace DFUQuest3
             {
                 if (!gameWired || dfCamera != gameCam)
                     Wire(gameCam, true);
+
+                // --- GAME-SCENE ONLY: root the XROrigin at the player ---
+                // The rig is DontDestroyOnLoad from the startup scene and sits at world
+                // origin while the player spawns at StartCellX/Y far away; parenting the
+                // camera under an origin-anchored XROrigin tears the view off the player
+                // and drops it inside geometry. Guarded: (1) runs only here, in the game
+                // scene (menu scene never reaches this branch), and (2) wrapped so a
+                // missing Player object logs a warning instead of throwing — the unguarded
+                // GameManager.PlayerObject access throws every frame in the menu scene and
+                // killed menu input.
+                try
+                {
+                    var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                    var playerObj = gm != null ? gm.PlayerObject : null;
+                    if (playerObj != null && xrOrigin.transform.parent != playerObj.transform)
+                    {
+                        // worldPositionStays=false: zero the XROrigin in the player's local
+                        // space so the camera (child, TrackedPoseDriver-driven) lands at the
+                        // player's world position + HMD offset.
+                        xrOrigin.transform.SetParent(playerObj.transform, false);
+                        Debug.Log("[DFUQuest3] XROrigin parented to Player object.");
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning("[DFUQuest3] XROrigin parenting skipped: " + e.Message);
+                }
                 return;
             }
 
