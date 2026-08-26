@@ -111,6 +111,60 @@ namespace DFUQuest3
                 if (d.EnterMarker != null) enter = d.EnterMarker.transform.position.ToString("F2");
             }
             Debug.Log($"[DFUQuest3] SPAWNDIAG player={p} {inside} | dungeonStart={marker} enter={enter} | StreamingWorld={(gm.StreamingWorld != null ? gm.StreamingWorld.name : "null")}");
+            DiagnosticRenderState();
+        }
+
+        // Empirically separate white-world causes: lighting vs texture vs shader vs sky.
+        void DiagnosticRenderState()
+        {
+            try
+            {
+                var gm = GameManager.Instance;
+                string lightStr = "lights=" + 0;
+                var lights = UnityEngine.Object.FindObjectsOfType<Light>();
+                lightStr = "lights=" + lights.Length;
+                foreach (var l in lights)
+                {
+                    if (l != null && l.type == LightType.Directional)
+                        lightStr += " | D:" + l.name + "(" + l.intensity.ToString("0.0") + ")";
+                }
+                string skyStr = "skyCam=null";
+                var sky = UnityEngine.Object.FindObjectOfType<DaggerfallWorkshop.DaggerfallSky>();
+                if (sky != null && sky.SkyCamera != null)
+                    skyStr = "skyCam=" + sky.SkyCamera.name + " enabled=" + sky.SkyCamera.enabled;
+                string matStr = "mat=null";
+                Renderer r = null;
+                var terrain = UnityEngine.Object.FindObjectOfType<DaggerfallWorkshop.DaggerfallTerrain>();
+                if (terrain != null) r = terrain.GetComponent<Renderer>();
+                if (r == null)
+                {
+                    foreach (var b in UnityEngine.Object.FindObjectsOfType<Renderer>())
+                    {
+                        if (b != null && b.sharedMaterial != null && b.sharedMaterial.shader != null &&
+                            b.sharedMaterial.shader.name.StartsWith("Daggerfall/"))
+                        { r = b; break; }
+                    }
+                }
+                if (r != null && r.sharedMaterial != null)
+                {
+                    var m = r.sharedMaterial;
+                    Texture t = m.HasProperty("_MainTex") ? m.GetTexture("_MainTex") : null;
+                    Texture tarr = m.HasProperty("_TileTexArr") ? m.GetTexture("_TileTexArr") : null;
+                    Texture tmap = m.HasProperty("_TilemapTex") ? m.GetTexture("_TilemapTex") : null;
+                    string arrDepth = "null";
+                    if (tarr is Texture2DArray tda) arrDepth = tda.depth.ToString();
+                    matStr = "mat=" + r.name + " shader=" + m.shader.name +
+                             " _MainTex=" + (t != null ? t.width + "x" + t.height : "null") +
+                             " _TileTexArr=" + (tarr != null ? "array(" + arrDepth + ")" : "null") +
+                             " _TilemapTex=" + (tmap != null ? tmap.width + "x" + tmap.height : "null") +
+                             " color=" + (m.HasProperty("_Color") ? m.GetColor("_Color").ToString() : "n/a");
+                }
+                Debug.Log("[DFUQuest3] RENDERDIAG " + lightStr + " | " + skyStr + " | " + matStr);
+            }
+            catch (System.Exception e)
+            {
+                Debug.Log("[DFUQuest3] RENDERDIAG failed: " + e.Message);
+            }
         }
 
         bool GameManagerReady()
