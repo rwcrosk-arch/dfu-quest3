@@ -32,7 +32,6 @@ namespace DFUQuest3
         bool wired;
         bool lastTrigger;
         bool panelAnchored;
-        bool lastInGame;
         GameObject reticleGO;
         LineRenderer rayLine;
         public MCPPoseBridge poseBridge; // real controller pose from on-device MCP server
@@ -57,23 +56,11 @@ namespace DFUQuest3
             if (cameraTransform == null) cameraTransform = Camera.main != null ? Camera.main.transform : null;
             if (panelGO == null) return;
 
-            // Menu gate: once gameplay is active, hide the IMGUI menu quad entirely.
-            // The overlay quad would otherwise keep rendering the menu over the game
-            // (flickering) and its CustomMousePosition would fight the in-game cursor.
-            bool inGame = GameManager.Instance != null && GameManager.Instance.IsPlayingGame();
-            if (inGame != lastInGame)
-            {
-                lastInGame = inGame;
-                if (panelGO != null) panelGO.SetActive(!inGame);
-                if (reticleGO != null) reticleGO.SetActive(false);
-                if (rayLine != null) rayLine.enabled = false;
-            }
-            if (inGame)
-            {
-                // Also release DFU's custom cursor override so the in-game cursor works.
-                if (dfUI != null && wired) dfUI.CustomMousePosition = null;
-                return;
-            }
+            // The render target shows DFU's ENTIRE UI stack (menu, in-game HUD, message
+            // boxes, intro text). Keep the quad visible in-game too — hiding it removed
+            // the in-game UI: the intro box never showed and a pending modal froze the
+            // game (weather inits then stalls, no input). The ray drives the cursor so
+            // the user can click the intro box's Continue button and HUD elements.
 
             // Anchor the panel at a comfortable distance in front of the head, and
             // RE-anchor if the user gets far from it (so it's never stranded in the
