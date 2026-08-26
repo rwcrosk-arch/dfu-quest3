@@ -142,30 +142,21 @@ namespace DFUQuest3
                     gm.MainCamera = dfCamera;
                 }
 
-                // --- Game-scene render hardening (proven fix for one-eye-white/garbage) ---
+                // --- Keep only the PostProcessLayer disable (one-eye-white fix). ---
                 // PPv2 (PostProcessing 2) + OpenXR Single-Pass-Instanced is a known-broken
                 // combo: the game scene's MainCamera carries a PostProcessLayer (the startup
                 // scene's doesn't). Under SPI the PPv2 blit goes to one eye and the other
                 // gets the raw/un-cleared buffer -> one white eye. Disable it on the VR cam.
+                //
+                // NOTE: do NOT force a SolidColor clear or disable the other scene cameras
+                // here. DFU renders the exterior sky via a SEPARATE SkyCamera (DaggerfallSky,
+                // OnPostRender/DrawSky) — disabling it and forcing SolidColor black on the
+                // main camera produces a pure-black sky. The 2019 reference build that
+                // reached colored gameplay left CameraClearManager and all scene cameras
+                // alone; do the same.
                 var ppLayer = dfCamera.GetComponent<UnityEngine.Rendering.PostProcessing.PostProcessLayer>();
                 if (ppLayer != null)
                     ppLayer.enabled = false;
-
-                // Force a solid black clear so the un-rendered eye is black, not white.
-                dfCamera.clearFlags = CameraClearFlags.SolidColor;
-                dfCamera.backgroundColor = Color.black;
-
-                // Extra display cameras in the game scene (SkyRig, RetroClearer,
-                // RetroPresentation, automap, weapon, weather) fight the stereo target and
-                // produce a scrambled/mirrored eye image. Keep only the DFU MainCamera;
-                // leave offscreen (targetTexture != null) cameras alone.
-                foreach (Camera c in Camera.allCameras)
-                {
-                    if (c == null) continue;
-                    if (c == dfCamera) continue;
-                    if (c.targetTexture != null) continue; // offscreen render target, leave it
-                    c.enabled = false;
-                }
 
                 gameWired = true;
                 menuWired = false;
