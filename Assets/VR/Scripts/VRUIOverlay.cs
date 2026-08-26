@@ -351,7 +351,11 @@ namespace DFUQuest3
             // Drive DFU's cursor to the panel position.
             if (dfUI != null && wired)
             {
-                Vector2 screen = new Vector2(lastUv.x * Screen.width, (1f - lastUv.y) * Screen.height);
+                // lastUv: u=0 left->1 right, v=0 TOP of panel ->1 BOTTOM (v = 0.5 - local.y).
+                // DFU's CustomMousePosition is TOP-origin (y=0 at top), so the screen Y must
+                // be v * Screen.height (NOT (1-v)*Screen.height, which flips it vertically and
+                // makes "aim at a button" click its mirror across the horizontal midline).
+                Vector2 screen = new Vector2(lastUv.x * Screen.width, lastUv.y * Screen.height);
                 dfUI.CustomMousePosition = screen;
                 if (trigger && !lastTrigger)
                 {
