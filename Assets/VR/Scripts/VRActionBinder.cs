@@ -16,6 +16,7 @@ namespace DFUQuest3
         public static InputAction TriggerAction { get; private set; }
         public static InputAction PinchAction { get; private set; }
         public static InputAction MoveAction { get; private set; }
+        public static InputAction TurnAction { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
@@ -46,9 +47,15 @@ namespace DFUQuest3
             move.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/thumbstick");
             move.AddBinding("<XRController>{LeftHand}/thumbstick");
 
+            // Turn (right thumbstick X) — drives yaw rotation of the player rig.
+            var turn = map.AddAction("Turn", InputActionType.Value);
+            turn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/thumbstick");
+            turn.AddBinding("<XRController>{RightHand}/thumbstick");
+
             TriggerAction = trig;
             PinchAction = pinch;
             MoveAction = move;
+            TurnAction = turn;
             map.Enable();
 
             Debug.Log("[DFUQuest3] VRActionBinder: built + enabled VR action map");

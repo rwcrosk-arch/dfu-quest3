@@ -8,6 +8,7 @@
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.InputSystem;
+using Unity.XR.CoreUtils;
 using DaggerfallWorkshop.Game;
 
 namespace DFUQuest3
@@ -73,13 +74,23 @@ namespace DFUQuest3
                 catch { }
                 if (stick.sqrMagnitude < 0.0001f)
                 {
-                    // Fallback: read the XR controller thumbstick directly.
+                    // Fallback: read the LEFT XR controller thumbstick directly. Select by
+                    // handedness (usages contains LeftHand), not the first controller in the
+                    // list — the first is often the right controller, whose stick would
+                    // otherwise feed movement (strafe) instead of turning.
                     try
                     {
                         foreach (var dev in UnityEngine.InputSystem.InputSystem.devices)
                         {
                             if (dev is UnityEngine.InputSystem.XR.XRController xrCtrl)
                             {
+                                bool isLeft = false;
+                                foreach (var u in xrCtrl.usages)
+                                {
+                                    if (u == UnityEngine.InputSystem.CommonUsages.LeftHand) { isLeft = true; break; }
+                                }
+                                if (!isLeft)
+                                    continue;
                                 var ts = xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.Vector2Control>("thumbstick");
                                 if (ts != null) { stick = ts.ReadValue(); break; }
                             }
@@ -88,6 +99,26 @@ namespace DFUQuest3
                     catch { }
                 }
                 im2.vrMoveStick = stick;
+
+                // VR turn: read the right thumbstick X and rotate the player rig's yaw.
+                // The rig (XROrigin) is parented under the Player object, so rotating it
+                // turns the player. Smooth continuous turn from the right stick X.
+                Vector2 turnStick = Vector2.zero;
+                try
+                {
+                    if (VRActionBinder.TurnAction != null && VRActionBinder.TurnAction.enabled)
+                        turnStick = VRActionBinder.TurnAction.ReadValue<Vector2>();
+                }
+                catch { }
+                if (Mathf.Abs(turnStick.x) > 0.15f)
+                {
+                    var rig = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                    if (rig != null)
+                    {
+                        float turnSpeed = 120f; // degrees per second
+                        rig.transform.Rotate(0f, turnStick.x * turnSpeed * Time.unscaledDeltaTime, 0f, Space.World);
+                    }
+                }
             }
         }
 
