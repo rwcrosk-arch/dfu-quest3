@@ -122,10 +122,19 @@ namespace DFUQuest3
                 im2.vrMoveStick = new Vector2(-stick.x, -stick.y);
 
                 // VR turn: read the right thumbstick and rotate the player rig.
-                // X = yaw (turn left/right), Y = pitch (look up/down). The rig (XROrigin)
-                // is parented under the Player object, so rotating it turns the player.
-                // Legacy joystick look is disabled (EnableController=false), so this is the
-                // sole stick reader.
+                // X = yaw (turn left/right), Y = pitch (look up/down).
+                //
+                // CRITICAL (stick-calibration fix): yaw rotates the PLAYER object, NOT
+                // the XROrigin. DFU computes movement in the Player's local space
+                // (FrictionMotor: myTransform.TransformDirection), so "left-stick
+                // forward" = the Player's facing. Rotating the rig (a child of the
+                // Player) left the Player's facing frozen and decoupled from where you
+                // look -> sticks lost calibration. Rotating the Player keeps the
+                // movement frame synced to the view, exactly like vanilla PlayerMouseLook.
+                //
+                // Pitch rotates a dedicated VRHeadPitch node (created by VRRigBootstrap
+                // between the rig and the camera). Tilting ONLY the camera view, never
+                // the rig or Player, keeps the yaw/movement plane level.
                 Vector2 turnStick = Vector2.zero;
                 try
                 {
@@ -135,15 +144,54 @@ namespace DFUQuest3
                 catch { }
                 if (Mathf.Abs(turnStick.x) > 0.15f || Mathf.Abs(turnStick.y) > 0.15f)
                 {
-                    var rig = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
-                    if (rig != null)
+                    // Yaw target: the Player object. Fall back to the XROrigin if no
+                    // Player yet (shouldn't happen in-game, but never throw in menu).
+                    Transform yawTarget = null;
+                    try
                     {
-                        float turnSpeed = 120f; // degrees per second (yaw)
-                        float pitchSpeed = 60f;  // degrees per second (pitch)
+                        var gm = GameManager.Instance;
+                        if (gm != null && gm.PlayerObject != null)
+                            yawTarget = gm.PlayerObject.transform;
+                    }
+                    catch { }
+                    if (yawTarget == null)
+                    {
+                        var rig = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                        if (rig != null) yawTarget = rig.transform;
+                    }
+
+                    float turnSpeed = 120f; // degrees per second (yaw)
+                    float pitchSpeed = 60f;  // degrees per second (pitch)
+
+                    if (yawTarget != null)
+                    {
                         // Yaw around world up.
-                        rig.transform.Rotate(0f, turnStick.x * turnSpeed * Time.unscaledDeltaTime, 0f, Space.World);
-                        // Pitch around the rig's local right axis (look up/down).
-                        rig.transform.Rotate(-turnStick.y * pitchSpeed * Time.unscaledDeltaTime, 0f, 0f, Space.Self);
+                        yawTarget.Rotate(0f, turnStick.x * turnSpeed * Time.unscaledDeltaTime, 0f, Space.World);
+                    }
+
+                    // Pitch the camera-pitch node (look up/down). Create it on the rig if
+                    // VRRigBootstrap hasn't yet (menu fallback path).
+                    Transform pitch = null;
+                    try
+                    {
+                        var rig = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                        if (rig != null)
+                        {
+                            pitch = rig.transform.Find("VRHeadPitch");
+                            if (pitch == null && rig.Camera != null)
+                            {
+                                var pitchGo = new GameObject("VRHeadPitch");
+                                pitch = pitchGo.transform;
+                                pitch.SetParent(rig.transform, false);
+                                rig.Camera.transform.SetParent(pitch, true);
+                            }
+                        }
+                    }
+                    catch { }
+                    if (pitch != null)
+                    {
+                        // Pitch around the pitch node's local right axis (look up/down).
+                        pitch.Rotate(-turnStick.y * pitchSpeed * Time.unscaledDeltaTime, 0f, 0f, Space.Self);
                     }
                 }
             }

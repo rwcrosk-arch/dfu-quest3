@@ -126,9 +126,19 @@ namespace DFUQuest3
             if (ml != null) ml.enabled = false;
 
             // Parent under the XROrigin so the floor offset applies, and register it
-            // as the tracked head.
-            if (dfCamera.transform.parent != xrOrigin.transform)
-                dfCamera.transform.SetParent(xrOrigin.transform, true);
+            // as the tracked head. A dedicated camera-pitch node (VRHeadPitch) sits
+            // between the rig and the camera so right-stick-Y pitch tilts ONLY the view,
+            // never the rig/player movement frame (tilting the rig is what made both
+            // sticks lose calibration after right-stick use).
+            Transform pitch = xrOrigin.transform.Find("VRHeadPitch");
+            if (pitch == null)
+            {
+                var pitchGo = new GameObject("VRHeadPitch");
+                pitch = pitchGo.transform;
+                pitch.SetParent(xrOrigin.transform, false);
+            }
+            if (dfCamera.transform.parent != pitch)
+                dfCamera.transform.SetParent(pitch, true);
             if (xrOrigin.Camera != dfCamera)
                 xrOrigin.Camera = dfCamera;
 
