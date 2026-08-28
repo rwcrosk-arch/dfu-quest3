@@ -191,21 +191,17 @@ namespace DFUQuest3
                     gm.MainCamera = dfCamera;
                 }
 
-                // --- Keep only the PostProcessLayer disable (one-eye-white fix). ---
-                // PPv2 (PostProcessing 2) + OpenXR Single-Pass-Instanced is a known-broken
-                // combo: the game scene's MainCamera carries a PostProcessLayer (the startup
-                // scene's doesn't). Under SPI the PPv2 blit goes to one eye and the other
-                // gets the raw/un-cleared buffer -> one white eye. Disable it on the VR cam.
-                //
-                // NOTE: do NOT force a SolidColor clear or disable the other scene cameras
-                // here. DFU renders the exterior sky via a SEPARATE SkyCamera (DaggerfallSky,
-                // OnPostRender/DrawSky) — disabling it and forcing SolidColor black on the
-                // main camera produces a pure-black sky. The 2019 reference build that
-                // reached colored gameplay left CameraClearManager and all scene cameras
-                // alone; do the same.
-                var ppLayer = dfCamera.GetComponent<UnityEngine.Rendering.PostProcessing.PostProcessLayer>();
-                if (ppLayer != null)
-                    ppLayer.enabled = false;
+                // PostProcessLayer stays ENABLED. It was briefly disabled as part of the
+                // one-eye-white fix (PPv2 + SPI is broken), but the SPI culprit was the
+                // SolidColor-black force + camera suppression in a0875fb, NOT this layer —
+                // all camera suppression was reverted in eb48810 and the white-eye resolved
+                // with the OpenXR MULTI-PASS switch (dfc6349), where PPv2 renders per-eye
+                // correctly. Keeping the layer disabled stripped DFU's ColorBoost grading
+                // (StartGameBehaviour.DeployCoreGameEffectSettings -> ColorBoost) plus any
+                // AA on the camera, which is the change that DARKENED gameplay. The 2019
+                // reference build reached bright, colored gameplay with PPv2 left enabled.
+                // If a PPv2 blit problem ever resurfaces, disable a single effect (TAA/AA)
+                // on the layer, NEVER ppLayer.enabled (the whole layer).
 
                 gameWired = true;
                 menuWired = false;
