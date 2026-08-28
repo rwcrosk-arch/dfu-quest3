@@ -13,9 +13,17 @@ using DaggerfallWorkshop.Game;
 
 namespace DFUQuest3
 {
+    // Run AFTER InputManager.Update (default order 0) so the actions we AddAction() are
+    // still in currentActions when DFU's gameplay code reads them. InputManager.Update
+    // clears currentActions at the START of its update; if we run before it, our actions
+    // get moved to previousActions and cleared, so ActionStarted consumers (ReadyWeapon,
+    // SwingWeapon, Jump) never see them. A positive order runs after the default 0.
+    [DefaultExecutionOrder(100)]
     public class VRTriggerBridge : MonoBehaviour
     {
         bool lastTrigger;
+        // Manual run (sprint) toggle — right stick click flips this; while on, Run is held.
+        bool runToggled;
         // Cycle state for the left-grip menu cycler: opens a different DFU window per
         // press (CharacterSheet -> Inventory -> QuestJournal -> AutoMap -> TravelMap -> Rest).
         int menuCycleIndex = -1;
@@ -264,12 +272,12 @@ namespace DFUQuest3
                     {
                         im3.AddAction(InputManager.Actions.Jump);
                     }
-                    // Left trigger -> Cast/Recast spell.
+                    // Left trigger -> Recast spell (actually casts the last spell, NOT the
+                    // magic menu — CastSpell opens the spell book, which is on B).
                     if (Pressed(VRActionBinder.TriggerLeftAction))
                     {
-                        im3.AddAction(InputManager.Actions.CastSpell);
                         im3.AddAction(InputManager.Actions.RecastSpell);
-                        Debug.Log("[DFUQuest3] LeftTrigger -> Cast/Recast");
+                        Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (cast)");
                     }
                     // Left thumbstick click -> Crouch.
                     if (Pressed(VRActionBinder.StickClickLeftAction))
@@ -277,11 +285,17 @@ namespace DFUQuest3
                         im3.AddAction(InputManager.Actions.Crouch);
                         Debug.Log("[DFUQuest3] LeftStickClick -> Crouch");
                     }
-                    // Right thumbstick click -> Toggle run (AutoRun toggles run on/off).
+                    // Right thumbstick click -> Toggle run (sprint). Manual toggle: flip a
+                    // bool and hold Run while on. (AutoRun is continuous-forward autorun,
+                    // not a sprint toggle — the user wants a run toggle.)
                     if (Pressed(VRActionBinder.StickClickRightAction))
                     {
-                        im3.AddAction(InputManager.Actions.AutoRun);
-                        Debug.Log("[DFUQuest3] RightStickClick -> Toggle run");
+                        runToggled = !runToggled;
+                        Debug.Log("[DFUQuest3] RightStickClick -> run " + (runToggled ? "ON" : "OFF"));
+                    }
+                    if (runToggled)
+                    {
+                        im3.AddAction(InputManager.Actions.Run);
                     }
                     // Right grip -> right-hand weapon/shield use (SwingWeapon).
                     if (Pressed(VRActionBinder.GripRightAction))
