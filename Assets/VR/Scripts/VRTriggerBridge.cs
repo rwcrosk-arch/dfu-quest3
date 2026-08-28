@@ -24,7 +24,24 @@ namespace DFUQuest3
             var go = new GameObject("DFUQuest3 VRTriggerBridge");
             go.AddComponent<VRTriggerBridge>();
             DontDestroyOnLoad(go);
-            Debug.Log("[DFUQuest3] VRTriggerBridge auto-wired");
+
+            // Disable DFU's legacy joystick path. On Android the legacy Input.GetAxis
+            // ("Axis1" etc.) maps to the XR controller sticks, so DFU's joystick movement
+            // AND camera-look read the same sticks as our VR code, fighting it: right-stick
+            // Y turned the camera (slow yaw), left-stick strafe got double-driven. Turning
+            // EnableController off makes our VR code the sole stick reader. We implement
+            // right-stick-Y pitch ourselves.
+            try
+            {
+                var im = InputManager.Instance;
+                if (im != null) im.EnableController = false;
+                DaggerfallWorkshop.DaggerfallUnity.Settings.EnableController = false;
+                Debug.Log("[DFUQuest3] VRTriggerBridge: legacy joystick (EnableController) disabled.");
+            }
+            catch (System.Exception e)
+            {
+                Debug.Log("[DFUQuest3] VRTriggerBridge: could not disable EnableController: " + e.Message);
+            }
         }
 
         void Update()
@@ -104,9 +121,11 @@ namespace DFUQuest3
                 // stick direction. (Right stick/turn is unaffected — it reads correctly.)
                 im2.vrMoveStick = new Vector2(-stick.x, -stick.y);
 
-                // VR turn: read the right thumbstick X and rotate the player rig's yaw.
-                // The rig (XROrigin) is parented under the Player object, so rotating it
-                // turns the player. Smooth continuous turn from the right stick X.
+                // VR turn: read the right thumbstick and rotate the player rig.
+                // X = yaw (turn left/right), Y = pitch (look up/down). The rig (XROrigin)
+                // is parented under the Player object, so rotating it turns the player.
+                // Legacy joystick look is disabled (EnableController=false), so this is the
+                // sole stick reader.
                 Vector2 turnStick = Vector2.zero;
                 try
                 {
@@ -114,13 +133,17 @@ namespace DFUQuest3
                         turnStick = VRActionBinder.TurnAction.ReadValue<Vector2>();
                 }
                 catch { }
-                if (Mathf.Abs(turnStick.x) > 0.15f)
+                if (Mathf.Abs(turnStick.x) > 0.15f || Mathf.Abs(turnStick.y) > 0.15f)
                 {
                     var rig = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
                     if (rig != null)
                     {
-                        float turnSpeed = 120f; // degrees per second
+                        float turnSpeed = 120f; // degrees per second (yaw)
+                        float pitchSpeed = 60f;  // degrees per second (pitch)
+                        // Yaw around world up.
                         rig.transform.Rotate(0f, turnStick.x * turnSpeed * Time.unscaledDeltaTime, 0f, Space.World);
+                        // Pitch around the rig's local right axis (look up/down).
+                        rig.transform.Rotate(-turnStick.y * pitchSpeed * Time.unscaledDeltaTime, 0f, 0f, Space.Self);
                     }
                 }
             }
