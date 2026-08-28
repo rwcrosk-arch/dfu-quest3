@@ -297,7 +297,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
         Texture2D LoadAtlasTextureFromPNG(string path)
         {
             byte[] data = File.ReadAllBytes(path);
-            Texture2D atlas = new Texture2D(0, 0, TextureFormat.ARGB32, false);
+            // Unity 6: Texture2D(0,0,...) throws "Failed to create texture because of
+            // invalid parameters" (was valid in 2019.4). LoadImage resizes the texture
+            // to the image dimensions anyway, so a 2x2 placeholder is safe.
+            Texture2D atlas = new Texture2D(2, 2, TextureFormat.ARGB32, false);
             if (atlas.LoadImage(data))
                 return atlas;
 

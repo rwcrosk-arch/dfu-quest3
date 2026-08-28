@@ -262,7 +262,9 @@ namespace DaggerfallWorkshop.Game.Serialization
             string path = Path.Combine(GetSaveFolder(key), screenshotFilename);
             byte[] data = File.ReadAllBytes(path);
 
-            Texture2D screenshot = new Texture2D(0, 0);
+            // Unity 6: Texture2D(0,0) throws "Failed to create texture because of invalid
+            // parameters" (was valid in 2019.4). LoadImage resizes it anyway.
+            Texture2D screenshot = new Texture2D(2, 2);
             if (screenshot.LoadImage(data))
                 return screenshot;
 

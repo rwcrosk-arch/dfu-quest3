@@ -298,7 +298,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             byte[] data = File.ReadAllBytes(path);
             if (data != null && data.Length > 0)
             {
-                Texture2D image = new Texture2D(0, 0);
+                // Unity 6: Texture2D(0,0) throws "Failed to create texture because of
+                // invalid parameters" (was valid in 2019.4). LoadImage resizes it anyway.
+                Texture2D image = new Texture2D(2, 2);
                 image.LoadImage(data);
                 label.Image = image;
             }
