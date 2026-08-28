@@ -346,7 +346,22 @@ namespace DFUQuest3
             // pose already carries its own height relative to the tracking origin, so adding
             // feet-level puts the ray at the controller's real height (waist/chest). Adding
             // eye height double-counts and lifts the ray above the head.
+            //
+            // Also capture the rig's world YAW and rotate the tracking-space controller pose
+            // through it. VRRigBootstrap.LateUpdate keeps rig.rotation = Euler(0, playerYaw, 0),
+            // so rigYaw IS the player yaw. Without this transform, the ray direction stays
+            // fixed in tracking space when the player turns around (the panel rotates with the
+            // player via playerT.forward but the ray doesn't). In the 2019 build the hands were
+            // children of the tracked camera, so player yaw rotated them implicitly; here we
+            // apply it explicitly.
             Vector3 rayAnchor = Vector3.zero;
+            Quaternion rigYaw = Quaternion.identity;
+            var rigT = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+            if (rigT != null)
+            {
+                rigYaw = Quaternion.Euler(0f, rigT.transform.eulerAngles.y, 0f);
+                rayAnchor = rigT.transform.position;
+            }
             var gmRay = DaggerfallWorkshop.Game.GameManager.Instance;
             if (gmRay != null)
             {
@@ -360,8 +375,7 @@ namespace DFUQuest3
             }
             if (rayAnchor == Vector3.zero)
             {
-                var rigRef = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
-                if (rigRef != null) rayAnchor = rigRef.transform.position;
+                if (rigT != null) rayAnchor = rigT.transform.position;
             }
 
             // === Head-gaze as the reliable pointer (head tracking is solid; the OpenXR
@@ -373,8 +387,8 @@ namespace DFUQuest3
             // but the on-device MCP server reads it correctly. Use that when valid.
             if (poseBridge != null && poseBridge.controllerValid)
             {
-                origin = poseBridge.controllerPosition + rayAnchor;
-                dir = poseBridge.controllerRotation * Vector3.forward;
+                origin = rayAnchor + rigYaw * poseBridge.controllerPosition;
+                dir = rigYaw * (poseBridge.controllerRotation * Vector3.forward);
                 hasRay = true;
             }
 
@@ -396,8 +410,8 @@ namespace DFUQuest3
                     continue;
                 if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.AxisControl>("trigger") is var tc && tc != null)
                     trigger = tc.ReadValue() > 0.5f;
-                origin = cp + rayAnchor;
-                dir = cr * Vector3.forward;
+                origin = rayAnchor + rigYaw * cp;
+                dir = rigYaw * (cr * Vector3.forward);
                 hasRay = true;
                 break;
             }
@@ -416,8 +430,8 @@ namespace DFUQuest3
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
                             if (cp.sqrMagnitude < 0.001f) continue; // zero pose = dead controller, skip
-                            origin = cp + rayAnchor;
-                            dir = cr * Vector3.forward;
+                            origin = rayAnchor + rigYaw * cp;
+                            dir = rigYaw * (cr * Vector3.forward);
                             hasRay = true;
                             break;
                         }

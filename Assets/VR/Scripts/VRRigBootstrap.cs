@@ -191,6 +191,37 @@ namespace DFUQuest3
                     gm.MainCamera = dfCamera;
                 }
 
+                // --- Fix ambient/brightness (dark world) ---
+                // DFU is lit by RenderSettings.ambientLight driven by PlayerAmbientLight,
+                // which depends on GameManager.MainCamera and SunlightManager.DaylightScale.
+                // StartGameBehaviour.DeployCoreGameEffectSettings + SunlightManager run at
+                // game start against the STALE startup camera (MainCameraObject was still the
+                // DDOL startup camera), so the ambient pipeline computed the NIGHT value
+                // (~0.25) instead of daytime (~0.9) and the PostProcessLayer was never found
+                // on the wrong camera. Re-pointing MainCameraObject above is too late for the
+                // already-cached PostProcessLayer field. Re-resolve it and re-push the core
+                // effect settings now that the real camera is set, so AA/AO/Bloom and the
+                // ambient/daylight rebind to the actual game camera.
+                var sgb = FindFirstObjectByType<DaggerfallWorkshop.Game.Utility.StartGameBehaviour>();
+                if (sgb != null)
+                {
+                    var f = typeof(DaggerfallWorkshop.Game.Utility.StartGameBehaviour).GetField("postProcessLayer",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    if (f != null) f.SetValue(sgb, null); // force re-resolve on next call
+                    try
+                    {
+                        sgb.DeployCoreGameEffectSettings(
+                            DaggerfallWorkshop.CoreGameEffectSettingsGroups.Antialiasing |
+                            DaggerfallWorkshop.CoreGameEffectSettingsGroups.AmbientOcclusion |
+                            DaggerfallWorkshop.CoreGameEffectSettingsGroups.Bloom);
+                        Debug.Log("[DFUQuest3] Re-deployed core game effect settings on the real game camera.");
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning("[DFUQuest3] Core effect settings re-deploy skipped: " + e.Message);
+                    }
+                }
+
                 // PostProcessLayer stays ENABLED. It was briefly disabled as part of the
                 // one-eye-white fix (PPv2 + SPI is broken), but the SPI culprit was the
                 // SolidColor-black force + camera suppression in a0875fb, NOT this layer —
