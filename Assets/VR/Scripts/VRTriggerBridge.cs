@@ -279,23 +279,54 @@ namespace DFUQuest3
                         im3.AddAction(InputManager.Actions.AutoRun);
                         Debug.Log("[DFUQuest3] LeftStickClick -> AutoRun");
                     }
-                    // Menu button -> Escape (pause) + back (close windows). The action
-                    // opens the pause menu; the vrEscapeQueuedFrame counter lets DFU
-                    // windows (which close on GetBackButtonUp) be dismissed from VR.
-                    // Delay visibility to NEXT frame so the same press that just OPENED
-                    // the pause menu can't immediately close it; the NEXT press closes
-                    // the window regardless of script execution order (frame counter
-                    // survives LateUpdate).
-                    if (Pressed(VRActionBinder.MenuButtonAction))
+                    // Right thumbstick click -> (reserved; attack moved to right grip)
+                    // Right grip -> attack (tap) + Run (hold). The grip is the side
+                    // trigger — much easier to swing than a stick click. DFU's
+                    // WeaponManager checks ActionStarted(SwingWeapon) to swing (edge);
+                    // Run is a held action. Tap the grip to swing, hold it to run.
+                    bool gripRightHeld = Held(VRActionBinder.GripRightAction);
+                    if (Pressed(VRActionBinder.GripRightAction))
                     {
-                        im3.AddAction(InputManager.Actions.Escape);
-                        im3.vrEscapeQueuedFrame = Time.frameCount + 1;
-                        Debug.Log("[DFUQuest3] Menu -> Escape + back");
+                        im3.AddAction(InputManager.Actions.SwingWeapon);
+                        Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon");
                     }
-                    // Right grip -> Run (hold, continuous)
-                    if (Held(VRActionBinder.GripRightAction))
+                    if (gripRightHeld)
                     {
                         im3.AddAction(InputManager.Actions.Run);
+                    }
+                    // Menu button -> CONTEXT-AWARE. If a window is open (WindowCount>0,
+                    // i.e. not just the HUD), it acts as BACK/EXIT (close the top window).
+                    // If no window is open, it opens the pause options dialog (which has
+                    // Save/Load/Settings/Controls). This fixes two problems: (1) save/load/
+                    // settings were unreachable because the menu button only fired Escape
+                    // which opened the pause menu but the cycling windows never exposed
+                    // them; (2) back/exit didn't work on cycling windows because Escape
+                    // pushed the pause options ON TOP instead of closing the cycling window.
+                    bool windowOpen = false;
+                    try
+                    {
+                        var uiMgr = DaggerfallWorkshop.Game.DaggerfallUI.UIManager;
+                        if (uiMgr != null && uiMgr.WindowCount > 0)
+                            windowOpen = true;
+                    }
+                    catch { }
+                    if (Pressed(VRActionBinder.MenuButtonAction))
+                    {
+                        if (windowOpen)
+                        {
+                            // Close the top window (back/exit). The vrEscapeQueuedFrame
+                            // counter feeds GetBackButtonUp() so the window closes.
+                            im3.vrEscapeQueuedFrame = Time.frameCount + 1;
+                            Debug.Log("[DFUQuest3] Menu -> back (close window)");
+                        }
+                        else
+                        {
+                            // No window open: open the pause options dialog (Save/Load/
+                            // Settings/Controls live here).
+                            im3.AddAction(InputManager.Actions.Escape);
+                            im3.vrEscapeQueuedFrame = Time.frameCount + 1;
+                            Debug.Log("[DFUQuest3] Menu -> open pause options");
+                        }
                     }
                 }
             }

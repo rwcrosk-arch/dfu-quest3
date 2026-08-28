@@ -25,6 +25,7 @@ namespace DFUQuest3
         public static InputAction GripRightAction { get; private set; }
         public static InputAction TriggerLeftAction { get; private set; }
         public static InputAction StickClickLeftAction { get; private set; }
+        public static InputAction StickClickRightAction { get; private set; }
         public static InputAction MenuButtonAction { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -103,6 +104,10 @@ namespace DFUQuest3
             var stickL = map.AddAction("StickClickLeft", InputActionType.Button);
             stickL.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/thumbstickClick");
             stickL.AddBinding("<XRController>{LeftHand}/thumbstickClick");
+            // Right thumbstick click -> SwingWeapon (attack)
+            var stickR = map.AddAction("StickClickRight", InputActionType.Button);
+            stickR.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/thumbstickClick");
+            stickR.AddBinding("<XRController>{RightHand}/thumbstickClick");
             // Menu button -> Escape (pause)
             var menuBtn = map.AddAction("MenuButton", InputActionType.Button);
             menuBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/menu");
@@ -120,6 +125,7 @@ namespace DFUQuest3
             GripRightAction = gripR;
             TriggerLeftAction = trigL;
             StickClickLeftAction = stickL;
+            StickClickRightAction = stickR;
             MenuButtonAction = menuBtn;
             map.Enable();
 
