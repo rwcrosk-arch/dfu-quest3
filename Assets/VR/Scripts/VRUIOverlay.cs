@@ -228,7 +228,9 @@ namespace DFUQuest3
             var col = panelGO.GetComponent<Collider>();
             if (col != null) UnityEngine.Object.Destroy(col);
 
-            var mat = new Material(Shader.Find("Unlit/Texture"));
+            var mat = new Material(Shader.Find("DFUQuest3/VRUIChromaKey"));
+            if (mat == null || mat.shader == null)
+                mat = new Material(Shader.Find("Unlit/Texture"));
             mat.mainTexture = CreateTargetTexture();
             var rend = panelGO.GetComponent<Renderer>();
             rend.sharedMaterial = mat;
@@ -302,12 +304,27 @@ namespace DFUQuest3
 
             // The controller pose (MCP/InputSystem/legacy) is in XR TRACKING SPACE
             // (relative to the XROrigin), but the panel is anchored in WORLD space at the
-            // player. In gameplay the rig is at the player (40m from tracking origin), so
-            // a raw tracking-space ray never reaches the panel. Offset the controller ray
-            // origin by the rig's world position to bring it into world space.
+            // player. In gameplay the rig may be at the tracking origin (not the player),
+            // so a raw tracking-space ray never reaches the panel. Offset the controller
+            // ray origin by the SAME anchor the panel uses — the player position in
+            // gameplay (PlayerMotor present), else the rig position (menu/char-creation).
             Vector3 rigWorld = Vector3.zero;
-            var rigRef = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
-            if (rigRef != null) rigWorld = rigRef.transform.position;
+            var gmRay = DaggerfallWorkshop.Game.GameManager.Instance;
+            if (gmRay != null)
+            {
+                try
+                {
+                    var pm = gmRay.PlayerMotor;
+                    if (pm != null && gmRay.PlayerObject != null)
+                        rigWorld = gmRay.PlayerObject.transform.position;
+                }
+                catch { }
+            }
+            if (rigWorld == Vector3.zero)
+            {
+                var rigRef = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                if (rigRef != null) rigWorld = rigRef.transform.position;
+            }
 
             // === Head-gaze as the reliable pointer (head tracking is solid; the OpenXR
             // controller may not materialize to Unity app code on Unity 6). The controller
