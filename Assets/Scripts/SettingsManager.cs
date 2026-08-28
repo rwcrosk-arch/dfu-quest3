@@ -180,6 +180,7 @@ namespace DaggerfallWorkshop
         public float InteriorShadowDistance { get; set; }
         public float ExteriorShadowDistance { get; set; }
         public bool EnableTextureArrays { get; set; }
+        public bool VRSkipIntroQuests { get; set; } = true;
         public int RandomDungeonTextures { get; set; }
         public int CursorWidth { get; set; }
         public int CursorHeight { get; set; }

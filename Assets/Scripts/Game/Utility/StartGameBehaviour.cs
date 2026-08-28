@@ -484,8 +484,16 @@ namespace DaggerfallWorkshop.Game.Utility
             lastStartMethod = StartMethods.NewCharacter;
 
             // Start main quest
-            QuestMachine.Instance.StartQuest("_TUTOR__");
-            QuestMachine.Instance.StartQuest("_BRISIEN");
+            // VR: skip the intro quests (_TUTOR__/_BRISIEN) that push a modal message box
+            // which pauses the game (PauseWhileOpen=true) until dismissed. In VR the in-game
+            // UI modal isn't reliably visible/clickable yet, so it deadlocks the game paused
+            // (CTRLDIAG: paused=True top=DaggerfallMessageBox forever). Skipping them lets
+            // the game stay unpaused so movement/jump/controls work.
+            if (!DaggerfallWorkshop.DaggerfallUnity.Settings.VRSkipIntroQuests)
+            {
+                QuestMachine.Instance.StartQuest("_TUTOR__");
+                QuestMachine.Instance.StartQuest("_BRISIEN");
+            }
 
             // Launch startup optional quest
             if (!string.IsNullOrEmpty(LaunchQuest))
