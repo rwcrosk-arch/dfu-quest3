@@ -28,6 +28,7 @@ namespace DFUQuest3
         private bool menuWired;      // wired to startup/menu camera
         private bool gameWired;      // wired to the real PlayerMouseLook camera
         private string lastFollowError; // dedupe follow-failure logs
+        private bool followLogged;      // one-shot follow diagnostic
 
         void Start()
         {
@@ -94,6 +95,15 @@ namespace DFUQuest3
 
                 Transform rig = xrOrigin.transform;
                 Transform p = playerObj.transform;
+
+                // One-shot diagnostic: confirm the follow is actually running and moving
+                // the rig to the player (the on-device diag showed rig at origin in
+                // gameplay, so we need to see if this LateUpdate fires at all).
+                if (!followLogged)
+                {
+                    followLogged = true;
+                    Debug.Log($"[DFUQuest3] Rig-follow active: gameWired={gameWired} player={p.position} rigBefore={rig.position}");
+                }
 
                 // Keep the rig unparented (kill any stale half-parenting) and follow explicitly.
                 if (rig.parent != null) rig.SetParent(null, true);

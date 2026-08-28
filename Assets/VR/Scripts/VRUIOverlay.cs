@@ -97,18 +97,40 @@ namespace DFUQuest3
             if (panelGO == null) return;
 
             // Anchor the panel at a comfortable distance in front of the head, and
-            // RE-anchor if the user gets far from it. The rig now follows the player in
-            // gameplay (VRRigBootstrap.LateUpdate drives rig position+yaw from the live
-            // player), so the game camera (child of the rig) is at the player — anchor to
-            // the camera world transform in gameplay. In menu/char-creation tracking
-            // origin == world origin, so the HMD pose (and camera) are correct too.
-            bool inGame = gm != null && gm.StateManager != null && gm.StateManager.GameInProgress;
+            // RE-anchor if the user gets far from it.
+            //
+            // ROBUST ANCHOR (does not depend on rig/camera state, which is unreliable —
+            // the rig-follow moves the rig to the player but the on-device diag still
+            // reads rig=(0,0,0) cam=(origin) in gameplay, suggesting a second rig or a
+            // reset):
+            // - Gameplay: anchor to PlayerObject + eye-height offset. PlayerMotor only
+            //   exists on the real playable player (NOT the char-creation temp), so its
+            //   presence is the reliable gameplay discriminator (GameInProgress was false
+            //   in gameplay, so that gate is unusable).
+            // - Menu/char-creation: PlayerMotor absent, so anchor to the HMD pose / camera
+            //   (tracking origin == world origin there, so those are correct).
+            Transform playerT = null;
+            if (gm != null)
+            {
+                try
+                {
+                    var pm = gm.PlayerMotor;
+                    if (pm != null && gm.PlayerObject != null)
+                        playerT = gm.PlayerObject.transform;
+                }
+                catch { }
+            }
+
             Vector3 anchorOrigin;
             Vector3 anchorForward;
-            if (inGame && cameraTransform != null)
+            if (playerT != null)
             {
-                anchorOrigin = cameraTransform.position;
-                anchorForward = cameraTransform.forward;
+                // Gameplay: player body + eye height. Player-forward is the facing.
+                anchorOrigin = playerT.position + Vector3.up * 1.5f;
+                anchorForward = playerT.forward;
+                anchorForward.y = 0f;
+                if (anchorForward.sqrMagnitude < 0.001f) anchorForward = Vector3.forward;
+                anchorForward.Normalize();
             }
             else if (hasHeadPose)
             {
@@ -122,19 +144,17 @@ namespace DFUQuest3
             }
             else
             {
-                anchorOrigin = Vector3.zero;
-                anchorForward = Vector3.forward;
+                return; // nothing to anchor to yet
             }
 
             if (!panelAnchored || Vector3.Distance(panelGO.transform.position, anchorOrigin) > 4f)
             {
-                if (!inGame && !hasHeadPose && cameraTransform == null) return; // nothing to anchor to yet
                 Vector3 pos = anchorOrigin + anchorForward * distance;
                 pos.y = anchorOrigin.y; // keep at head height
                 panelGO.transform.position = pos;
                 panelGO.transform.rotation = Quaternion.LookRotation(pos - anchorOrigin);
                 panelAnchored = true;
-                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (game=" + inGame + ")");
+                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (player=" + (playerT != null) + ")");
             }
 
             // Sync the quad texture to DFU's current render target every frame —
@@ -333,22 +353,54 @@ namespace DFUQuest3
                 Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | {camDiag} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
-            // If no controller ray, use head-gaze from the OpenXR head-tracking device
-            // (reliable — the head device works via legacy, unlike controllers).
+            // If no controller ray, use head-gaze. In gameplay the camera/HMD pose is at
+            // world origin while the panel is anchored to the player + eye height, so
+            // point the gaze at the player's facing from eye height. Otherwise (menu/
+            // char-creation) use the HMD/camera as before.
             if (!hasRay)
             {
-                var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-                InputDevices.GetDevices(hDevices);
-                foreach (var d in hDevices)
+                Transform playerT = null;
+                var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                if (gm != null)
                 {
-                    if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
-                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                    try
                     {
-                        origin = hp;
-                        dir = hr * Vector3.forward;
-                        hasRay = true;
-                        break;
+                        var pm = gm.PlayerMotor;
+                        if (pm != null && gm.PlayerObject != null)
+                            playerT = gm.PlayerObject.transform;
+                    }
+                    catch { }
+                }
+                if (playerT != null)
+                {
+                    origin = playerT.position + Vector3.up * 1.5f;
+                    dir = playerT.forward;
+                    dir.y = 0f;
+                    if (dir.sqrMagnitude < 0.001f) dir = Vector3.forward;
+                    dir.Normalize();
+                    hasRay = true;
+                }
+                else if (cameraTransform != null)
+                {
+                    origin = cameraTransform.position;
+                    dir = cameraTransform.forward;
+                    hasRay = true;
+                }
+                else
+                {
+                    var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                    InputDevices.GetDevices(hDevices);
+                    foreach (var d in hDevices)
+                    {
+                        if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
+                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                            d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                        {
+                            origin = hp;
+                            dir = hr * Vector3.forward;
+                            hasRay = true;
+                            break;
+                        }
                     }
                 }
             }
