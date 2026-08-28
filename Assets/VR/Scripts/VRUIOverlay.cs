@@ -50,6 +50,30 @@ namespace DFUQuest3
             Wire();
         }
 
+        void Start()
+        {
+            // DFU loads the game scene with SceneManager.LoadScene(Single): every
+            // non-DDOL object (this quad, the reticle, the ray) is destroyed, and the
+            // game scene's DaggerfallUI is a DIFFERENT instance. Re-arm anchoring and
+            // rewiring so gameplay rebuilds the panel instead of Update() early-returning
+            // forever on the destroyed (fake-null) quad.
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        void OnDestroy()
+        {
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        void OnSceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode mode)
+        {
+            panelAnchored = false;
+            wired = false;
+            dfUI = null;
+            uiTarget = null;
+            Debug.Log("[DFUQuest3] VRUIOverlay scene-loaded reset: will rebuild/re-anchor panel (scene=" + scene.name + ")");
+        }
+
         // Resolved once via HMD pose; falls back to camera transform when tracking is unavailable.
         Vector3 headPosition;
         Quaternion headRotation;
@@ -94,7 +118,14 @@ namespace DFUQuest3
                 cam = Camera.main;
             if (cam != null) cameraTransform = cam.transform;
 
-            if (panelGO == null) return;
+            if (panelGO == null)
+            {
+                // Quad was destroyed by the game-scene load (LoadScene Single). Rebuild
+                // and re-anchor instead of silently returning every frame.
+                BuildPanel();
+                panelAnchored = false;
+                if (panelGO == null) return;
+            }
 
             // Anchor the panel at a comfortable distance in front of the head, and
             // RE-anchor if the user gets far from it.
@@ -184,6 +215,7 @@ namespace DFUQuest3
             rend.sharedMaterial = mat;
             rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             rend.receiveShadows = false;
+            DontDestroyOnLoad(panelGO); // survive DFU's LoadScene(Single) into the game scene
         }
 
         RenderTexture CreateTargetTexture()
@@ -202,6 +234,7 @@ namespace DFUQuest3
             reticleGO.GetComponent<Renderer>().sharedMaterial = mat;
             reticleGO.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             reticleGO.GetComponent<Renderer>().receiveShadows = false;
+            DontDestroyOnLoad(reticleGO);
 
             // Visible ray from the head to the reticle (so the raycast is obvious).
             var rayGO = new GameObject("DFU VR Ray");
@@ -214,6 +247,7 @@ namespace DFUQuest3
             rayLine.material = new Material(Shader.Find("Unlit/Color"));
             rayLine.material.color = Color.white;
             rayLine.useWorldSpace = true;
+            DontDestroyOnLoad(rayGO);
         }
 
         void Wire()

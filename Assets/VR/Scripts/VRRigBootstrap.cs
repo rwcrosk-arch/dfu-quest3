@@ -29,6 +29,7 @@ namespace DFUQuest3
         private bool gameWired;      // wired to the real PlayerMouseLook camera
         private string lastFollowError; // dedupe follow-failure logs
         private bool followLogged;      // one-shot follow diagnostic
+        private float followHeartbeat = 2f;
 
         void Start()
         {
@@ -113,6 +114,15 @@ namespace DFUQuest3
                 // Rotation: yaw only, so rig/pitch-node/view turn with the player and
                 // left-stick movement (Player local space) stays calibrated.
                 rig.rotation = Quaternion.Euler(0f, p.eulerAngles.y, 0f);
+
+                // Gameplay heartbeat: prove the rig STAYS at the player (the old on-device
+                // rig=(0,0,0) reads were all char-creation, pre-gameWired).
+                followHeartbeat -= Time.unscaledDeltaTime;
+                if (followHeartbeat <= 0f)
+                {
+                    followHeartbeat = 2f;
+                    Debug.Log($"[DFUQuest3] Rig-follow heartbeat: rig={rig.position} player={p.position} camWorld={xrOrigin.Camera.transform.position}");
+                }
             }
             catch (System.Exception ex)
             {
