@@ -338,13 +338,14 @@ namespace DFUQuest3
             bool hasRay = false;
 
             // The controller pose (MCP/InputSystem/legacy) is in XR TRACKING SPACE
-            // (relative to the XROrigin), but the panel is anchored in WORLD space at the
-            // player's eye height. In gameplay the rig may be at the tracking origin (not
-            // the player), so a raw tracking-space ray never reaches the panel. Offset the
-            // controller ray origin by the SAME anchor the panel uses — the player's eye
-            // position in gameplay (PlayerMotor present, PlayerObject + eye height), else
-            // the rig position (menu/char-creation). Must match the panel's +1.5m eye
-            // offset or the ray sits 1.5m below the panel and misses it.
+            // (relative to the XROrigin, whose origin is at the player's feet in gameplay).
+            // The panel is anchored in WORLD space at the player's eye height. In gameplay
+            // the rig may be at the tracking origin (not the player), so a raw tracking-space
+            // ray never reaches the panel. Offset the controller ray origin by the tracking
+            // origin in world space = the player's FEET (NOT eye height). The controller
+            // pose already carries its own height relative to the tracking origin, so adding
+            // feet-level puts the ray at the controller's real height (waist/chest). Adding
+            // eye height double-counts and lifts the ray above the head.
             Vector3 rayAnchor = Vector3.zero;
             var gmRay = DaggerfallWorkshop.Game.GameManager.Instance;
             if (gmRay != null)
@@ -353,7 +354,7 @@ namespace DFUQuest3
                 {
                     var pm = gmRay.PlayerMotor;
                     if (pm != null && gmRay.PlayerObject != null)
-                        rayAnchor = gmRay.PlayerObject.transform.position + Vector3.up * 1.5f;
+                        rayAnchor = gmRay.PlayerObject.transform.position; // feet level
                 }
                 catch { }
             }
