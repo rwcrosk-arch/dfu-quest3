@@ -53,7 +53,13 @@ namespace DFUQuest3
         void Update()
         {
             if (!wired) Wire();
-            if (cameraTransform == null) cameraTransform = Camera.main != null ? Camera.main.transform : null;
+            // Always track Camera.main, not just when null. In the game scene Camera.main
+            // becomes the real game camera, but cameraTransform was captured once in the
+            // menu scene pointing at the stale DontDestroyOnLoad startup camera (still at
+            // world origin). If we only refresh when null, the panel re-anchors to the
+            // startup camera's origin and strands the UI 40m from the player in gameplay.
+            var cam = Camera.main != null ? Camera.main.transform : null;
+            if (cam != null) cameraTransform = cam;
             if (panelGO == null) return;
 
             // The render target shows DFU's ENTIRE UI stack (menu, in-game HUD, message
