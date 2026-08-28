@@ -17,6 +17,15 @@ namespace DFUQuest3
         public static InputAction PinchAction { get; private set; }
         public static InputAction MoveAction { get; private set; }
         public static InputAction TurnAction { get; private set; }
+        public static InputAction AButtonAction { get; private set; }   // right primary
+        public static InputAction BButtonAction { get; private set; }   // right secondary
+        public static InputAction XButtonAction { get; private set; }  // left primary
+        public static InputAction YButtonAction { get; private set; }   // left secondary
+        public static InputAction GripLeftAction { get; private set; }
+        public static InputAction GripRightAction { get; private set; }
+        public static InputAction TriggerLeftAction { get; private set; }
+        public static InputAction StickClickLeftAction { get; private set; }
+        public static InputAction MenuButtonAction { get; private set; }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
@@ -52,10 +61,57 @@ namespace DFUQuest3
             turn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/thumbstick");
             turn.AddBinding("<XRController>{RightHand}/thumbstick");
 
+            // --- Buttons (PCVR DFU template, see VRInputBridge.cs) ---
+            // Right primary (A) -> CastSpell
+            var aBtn = map.AddAction("AButton", InputActionType.Button);
+            aBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/primaryButton");
+            aBtn.AddBinding("<XRController>{RightHand}/primaryButton");
+            // Right secondary (B) -> Inventory
+            var bBtn = map.AddAction("BButton", InputActionType.Button);
+            bBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/secondaryButton");
+            bBtn.AddBinding("<XRController>{RightHand}/secondaryButton");
+            // Left primary (X) -> (reserved; PCVR uses it for nothing critical)
+            var xBtn = map.AddAction("XButton", InputActionType.Button);
+            xBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/primaryButton");
+            xBtn.AddBinding("<XRController>{LeftHand}/primaryButton");
+            // Left secondary (Y) -> RecastSpell
+            var yBtn = map.AddAction("YButton", InputActionType.Button);
+            yBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/secondaryButton");
+            yBtn.AddBinding("<XRController>{LeftHand}/secondaryButton");
+            // Left grip -> Jump
+            var gripL = map.AddAction("GripLeft", InputActionType.Button);
+            gripL.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/grip");
+            gripL.AddBinding("<XRController>{LeftHand}/grip");
+            // Right grip -> Run (hold)
+            var gripR = map.AddAction("GripRight", InputActionType.Button);
+            gripR.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/grip");
+            gripR.AddBinding("<XRController>{RightHand}/grip");
+            // Left trigger -> Crouch
+            var trigL = map.AddAction("TriggerLeft", InputActionType.Button);
+            trigL.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/trigger");
+            trigL.AddBinding("<XRController>{LeftHand}/trigger");
+            // Left thumbstick click -> AutoRun
+            var stickL = map.AddAction("StickClickLeft", InputActionType.Button);
+            stickL.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/thumbstickClick");
+            stickL.AddBinding("<XRController>{LeftHand}/thumbstickClick");
+            // Menu button -> Escape (pause)
+            var menuBtn = map.AddAction("MenuButton", InputActionType.Button);
+            menuBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/menu");
+            menuBtn.AddBinding("<XRController>{LeftHand}/menu");
+
             TriggerAction = trig;
             PinchAction = pinch;
             MoveAction = move;
             TurnAction = turn;
+            AButtonAction = aBtn;
+            BButtonAction = bBtn;
+            XButtonAction = xBtn;
+            YButtonAction = yBtn;
+            GripLeftAction = gripL;
+            GripRightAction = gripR;
+            TriggerLeftAction = trigL;
+            StickClickLeftAction = stickL;
+            MenuButtonAction = menuBtn;
             map.Enable();
 
             Debug.Log("[DFUQuest3] VRActionBinder: built + enabled VR action map");

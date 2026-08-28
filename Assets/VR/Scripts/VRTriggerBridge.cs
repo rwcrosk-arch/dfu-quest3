@@ -194,7 +194,79 @@ namespace DFUQuest3
                         pitch.Rotate(-turnStick.y * pitchSpeed * Time.unscaledDeltaTime, 0f, 0f, Space.Self);
                     }
                 }
+
+                // --- Buttons (PCVR DFU template) ---
+                // Inject DFU actions via InputManager.AddAction so all of DFU's gameplay
+                // logic (cast, inventory, jump, crouch, run, recast, autorun, pause) works
+                // unmodified. Edge-triggered buttons fire once on the rising edge.
+                var im3 = InputManager.Instance;
+                if (im3 != null)
+                {
+                    // Right primary (A) -> CastSpell
+                    if (Pressed(VRActionBinder.AButtonAction))
+                    {
+                        im3.AddAction(InputManager.Actions.CastSpell);
+                        Debug.Log("[DFUQuest3] A -> CastSpell");
+                    }
+                    // Right secondary (B) -> Inventory
+                    if (Pressed(VRActionBinder.BButtonAction))
+                    {
+                        im3.AddAction(InputManager.Actions.Inventory);
+                        Debug.Log("[DFUQuest3] B -> Inventory");
+                    }
+                    // Left secondary (Y) -> RecastSpell
+                    if (Pressed(VRActionBinder.YButtonAction))
+                    {
+                        im3.AddAction(InputManager.Actions.RecastSpell);
+                        Debug.Log("[DFUQuest3] Y -> RecastSpell");
+                    }
+                    // Left grip -> Jump
+                    if (Pressed(VRActionBinder.GripLeftAction))
+                    {
+                        im3.AddAction(InputManager.Actions.Jump);
+                        Debug.Log("[DFUQuest3] LeftGrip -> Jump");
+                    }
+                    // Left trigger -> Crouch
+                    if (Pressed(VRActionBinder.TriggerLeftAction))
+                    {
+                        im3.AddAction(InputManager.Actions.Crouch);
+                        Debug.Log("[DFUQuest3] LeftTrigger -> Crouch");
+                    }
+                    // Left thumbstick click -> AutoRun
+                    if (Pressed(VRActionBinder.StickClickLeftAction))
+                    {
+                        im3.AddAction(InputManager.Actions.AutoRun);
+                        Debug.Log("[DFUQuest3] LeftStickClick -> AutoRun");
+                    }
+                    // Menu button -> Escape (pause)
+                    if (Pressed(VRActionBinder.MenuButtonAction))
+                    {
+                        im3.AddAction(InputManager.Actions.Escape);
+                        Debug.Log("[DFUQuest3] Menu -> Escape");
+                    }
+                    // Right grip -> Run (hold, continuous)
+                    if (Held(VRActionBinder.GripRightAction))
+                    {
+                        im3.AddAction(InputManager.Actions.Run);
+                    }
+                }
             }
+        }
+
+        // Edge-triggered button press (fires once on rising edge).
+        bool Pressed(InputAction a)
+        {
+            if (a == null || !a.enabled) return false;
+            try { return a.WasPressedThisFrame(); }
+            catch { return false; }
+        }
+
+        // Continuous button hold.
+        bool Held(InputAction a)
+        {
+            if (a == null || !a.enabled) return false;
+            try { return a.IsPressed(); }
+            catch { return false; }
         }
 
         float hb = 0f;
