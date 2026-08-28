@@ -92,6 +92,11 @@ namespace DaggerfallWorkshop.Game
         KeyCode[] joystickUICache = new KeyCode[4]; //leftClick, rightClick, MiddleClick, Back
         // VR controller trigger click flag — set by VRPlayerInput to synthesize a left click.
         public bool vrClickQueued = false;
+        // VR "back"/Escape flag, frame-sticky like vrClickQueued. Set by the VR bridge
+        // when the controller menu button is pressed; consumed by GetBackButton* so DFU
+        // windows (which close on GetBackButtonUp) can be dismissed from VR. Cleared in
+        // LateUpdate.
+        public bool vrEscapeQueued = false;
 
         // VR override: additive VR scripts set this to the current reticle position in
         // screen pixels. When set, MousePosition returns this instead of Unity's
@@ -590,6 +595,7 @@ namespace DaggerfallWorkshop.Game
             // before the cursor settles on the button, the flag stays set until the button
             // is hovered and fires.
             vrClickQueued = false;
+            vrEscapeQueued = false;
         }
 
         void OnGUI()
@@ -1113,17 +1119,17 @@ namespace DaggerfallWorkshop.Game
 
         public bool GetBackButtonDown()
         {
-            return Input.GetKeyDown(KeyCode.Escape) || (EnableController && GetKeyDown(joystickUICache[3], false));
+            return Input.GetKeyDown(KeyCode.Escape) || (EnableController && GetKeyDown(joystickUICache[3], false)) || vrEscapeQueued;
         }
 
         public bool GetBackButtonUp()
         {
-            return Input.GetKeyUp(KeyCode.Escape) || (EnableController && GetKeyUp(joystickUICache[3], false));
+            return Input.GetKeyUp(KeyCode.Escape) || (EnableController && GetKeyUp(joystickUICache[3], false)) || vrEscapeQueued;
         }
 
         public bool GetBackButton()
         {
-            return Input.GetKey(KeyCode.Escape) || (EnableController && GetKey(joystickUICache[3], false));
+            return Input.GetKey(KeyCode.Escape) || (EnableController && GetKey(joystickUICache[3], false)) || vrEscapeQueued;
         }
 
         public bool GetKey(KeyCode k, bool useSecondary = true)

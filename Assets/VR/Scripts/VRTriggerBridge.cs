@@ -220,11 +220,13 @@ namespace DFUQuest3
                         im3.AddAction(InputManager.Actions.RecastSpell);
                         Debug.Log("[DFUQuest3] Y -> RecastSpell");
                     }
-                    // Left grip -> Jump
-                    if (Pressed(VRActionBinder.GripLeftAction))
+                    // Left grip -> Jump (HELD, like the spacebar). DFU's AcrobatMotor
+                    // checks HasAction(Jump) continuously and requires GroundedTime >= 0.1f,
+                    // so an edge-only single-frame injection gets rejected (bunny-hop guard).
+                    // Hold the grip to jump; release to stop.
+                    if (Held(VRActionBinder.GripLeftAction))
                     {
                         im3.AddAction(InputManager.Actions.Jump);
-                        Debug.Log("[DFUQuest3] LeftGrip -> Jump");
                     }
                     // Left trigger -> Crouch
                     if (Pressed(VRActionBinder.TriggerLeftAction))
@@ -238,11 +240,14 @@ namespace DFUQuest3
                         im3.AddAction(InputManager.Actions.AutoRun);
                         Debug.Log("[DFUQuest3] LeftStickClick -> AutoRun");
                     }
-                    // Menu button -> Escape (pause)
+                    // Menu button -> Escape (pause) + back (close windows). The action
+                    // opens the pause menu; the vrEscapeQueued flag lets DFU windows
+                    // (which close on GetBackButtonUp) be dismissed from VR.
                     if (Pressed(VRActionBinder.MenuButtonAction))
                     {
                         im3.AddAction(InputManager.Actions.Escape);
-                        Debug.Log("[DFUQuest3] Menu -> Escape");
+                        im3.vrEscapeQueued = true;
+                        Debug.Log("[DFUQuest3] Menu -> Escape + back");
                     }
                     // Right grip -> Run (hold, continuous)
                     if (Held(VRActionBinder.GripRightAction))
