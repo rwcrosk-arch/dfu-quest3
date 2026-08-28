@@ -37,6 +37,7 @@ namespace DFUQuest3
         public MCPPoseBridge poseBridge; // real controller pose from on-device MCP server
         Vector2 lastUv = new Vector2(0.5f, 0.5f);
         float diagTimer = 2f;
+        bool panelModeGameplay; // true if the panel currently uses the chroma-key shader
 
         public void Init(Transform cam)
         {
@@ -152,6 +153,11 @@ namespace DFUQuest3
                 catch { }
             }
 
+            // Segment panel material by mode: opaque backdrop in menu/char-creation (so the
+            // new-game UI stays fully visible), chroma-key transparent black in gameplay
+            // (so the panel doesn't block the view). Swap only when the mode changes.
+            SetPanelMaterialForMode(playerT != null);
+
             Vector3 anchorOrigin;
             Vector3 anchorForward;
             if (playerT != null)
@@ -228,6 +234,9 @@ namespace DFUQuest3
             var col = panelGO.GetComponent<Collider>();
             if (col != null) UnityEngine.Object.Destroy(col);
 
+            // Default opaque material for menu/char-creation (the full UI backdrop should
+            // be visible there). Gameplay swaps to the chroma-key shader (transparent black
+            // background) in Update via SetPanelMaterialForMode().
             var mat = new Material(Shader.Find("Unlit/Texture"));
             mat.mainTexture = CreateTargetTexture();
             var rend = panelGO.GetComponent<Renderer>();
@@ -240,6 +249,34 @@ namespace DFUQuest3
         RenderTexture CreateTargetTexture()
         {
             return new RenderTexture(renderWidth, renderHeight, 0, RenderTextureFormat.ARGB32);
+        }
+
+        // Switch the panel material between opaque (menu/char-creation) and chroma-key
+        // transparent-black (gameplay), only when the mode changes. Keeps the DFU UI
+        // texture, swapping only the shader so black becomes transparent in gameplay.
+        void SetPanelMaterialForMode(bool isGameplay)
+        {
+            if (panelGO == null || isGameplay == panelModeGameplay) return;
+            panelModeGameplay = isGameplay;
+
+            var rend = panelGO.GetComponent<Renderer>();
+            if (rend == null) return;
+            var tex = rend.sharedMaterial != null ? rend.sharedMaterial.mainTexture : null;
+
+            if (isGameplay)
+            {
+                var mat = new Material(Shader.Find("DFUQuest3/VRUIChromaKey"));
+                if (mat == null || mat.shader == null)
+                    mat = new Material(Shader.Find("Unlit/Texture"));
+                mat.mainTexture = tex;
+                rend.sharedMaterial = mat;
+            }
+            else
+            {
+                var mat = new Material(Shader.Find("Unlit/Texture"));
+                mat.mainTexture = tex;
+                rend.sharedMaterial = mat;
+            }
         }
 
         void BuildReticle()
@@ -302,12 +339,29 @@ namespace DFUQuest3
 
             // The controller pose (MCP/InputSystem/legacy) is in XR TRACKING SPACE
             // (relative to the XROrigin), but the panel is anchored in WORLD space at the
-            // player. In gameplay the rig is at the player (40m from tracking origin), so
-            // a raw tracking-space ray never reaches the panel. Offset the controller ray
-            // origin by the rig's world position to bring it into world space.
-            Vector3 rigWorld = Vector3.zero;
-            var rigRef = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
-            if (rigRef != null) rigWorld = rigRef.transform.position;
+            // player's eye height. In gameplay the rig may be at the tracking origin (not
+            // the player), so a raw tracking-space ray never reaches the panel. Offset the
+            // controller ray origin by the SAME anchor the panel uses — the player's eye
+            // position in gameplay (PlayerMotor present, PlayerObject + eye height), else
+            // the rig position (menu/char-creation). Must match the panel's +1.5m eye
+            // offset or the ray sits 1.5m below the panel and misses it.
+            Vector3 rayAnchor = Vector3.zero;
+            var gmRay = DaggerfallWorkshop.Game.GameManager.Instance;
+            if (gmRay != null)
+            {
+                try
+                {
+                    var pm = gmRay.PlayerMotor;
+                    if (pm != null && gmRay.PlayerObject != null)
+                        rayAnchor = gmRay.PlayerObject.transform.position + Vector3.up * 1.5f;
+                }
+                catch { }
+            }
+            if (rayAnchor == Vector3.zero)
+            {
+                var rigRef = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                if (rigRef != null) rayAnchor = rigRef.transform.position;
+            }
 
             // === Head-gaze as the reliable pointer (head tracking is solid; the OpenXR
             // controller may not materialize to Unity app code on Unity 6). The controller
@@ -318,7 +372,7 @@ namespace DFUQuest3
             // but the on-device MCP server reads it correctly. Use that when valid.
             if (poseBridge != null && poseBridge.controllerValid)
             {
-                origin = poseBridge.controllerPosition + rigWorld;
+                origin = poseBridge.controllerPosition + rayAnchor;
                 dir = poseBridge.controllerRotation * Vector3.forward;
                 hasRay = true;
             }
@@ -341,7 +395,7 @@ namespace DFUQuest3
                     continue;
                 if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.AxisControl>("trigger") is var tc && tc != null)
                     trigger = tc.ReadValue() > 0.5f;
-                origin = cp + rigWorld;
+                origin = cp + rayAnchor;
                 dir = cr * Vector3.forward;
                 hasRay = true;
                 break;
@@ -361,7 +415,7 @@ namespace DFUQuest3
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
                             if (cp.sqrMagnitude < 0.001f) continue; // zero pose = dead controller, skip
-                            origin = cp + rigWorld;
+                            origin = cp + rayAnchor;
                             dir = cr * Vector3.forward;
                             hasRay = true;
                             break;
@@ -458,7 +512,7 @@ namespace DFUQuest3
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
                         {
-                            origin = hp + rigWorld;
+                            origin = hp + rayAnchor;
                             dir = hr * Vector3.forward;
                             hasRay = true;
                             break;
