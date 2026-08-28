@@ -19,12 +19,12 @@ namespace DFUQuest3
         // Cycle state for the left-grip menu cycler: opens a different DFU window per
         // press (CharacterSheet -> Inventory -> QuestJournal -> AutoMap -> TravelMap -> Rest).
         int menuCycleIndex = -1;
-        bool lastGripLeftHeld;
-        // Cycle through the non-face-button DFU windows. Face buttons already open
-        // Spells (A) and Inventory (B), so the cycler covers the rest.
+        // Cycle through the DFU windows. B opens the magic menu (spell book) directly, so
+        // the cycler covers the rest including Inventory.
         static readonly InputManager.Actions[] MenuCycle =
         {
             InputManager.Actions.CharacterSheet,
+            InputManager.Actions.Inventory,
             InputManager.Actions.LogBook,  // opens the quest journal
             InputManager.Actions.AutoMap,
             InputManager.Actions.TravelMap,
@@ -229,37 +229,34 @@ namespace DFUQuest3
                 var im3 = InputManager.Instance;
                 if (im3 != null)
                 {
-                    // Right primary (A) -> CastSpell
+                    // Right primary (A) -> Sheath/unsheathe weapon (ReadyWeapon toggles).
                     if (Pressed(VRActionBinder.AButtonAction))
                     {
-                        im3.AddAction(InputManager.Actions.CastSpell);
-                        Debug.Log("[DFUQuest3] A -> CastSpell");
+                        im3.AddAction(InputManager.Actions.ReadyWeapon);
+                        Debug.Log("[DFUQuest3] A -> ReadyWeapon (sheath/unsheathe)");
                     }
-                    // Right secondary (B) -> Inventory
+                    // Right secondary (B) -> Magic menu (spell book). Inventory is reached
+                    // via the menu cycler.
                     if (Pressed(VRActionBinder.BButtonAction))
                     {
-                        im3.AddAction(InputManager.Actions.Inventory);
-                        Debug.Log("[DFUQuest3] B -> Inventory");
+                        im3.AddAction(InputManager.Actions.CastSpell);
+                        Debug.Log("[DFUQuest3] B -> Magic menu (spell book)");
                     }
-                    // Left secondary (Y) -> RecastSpell
+                    // Left secondary (Y) -> cycle menus (press = next window). Cycles
+                    // CharacterSheet -> Inventory -> LogBook -> AutoMap -> TravelMap -> Rest.
                     if (Pressed(VRActionBinder.YButtonAction))
-                    {
-                        im3.AddAction(InputManager.Actions.RecastSpell);
-                        Debug.Log("[DFUQuest3] Y -> RecastSpell");
-                    }
-                    // Left grip -> cycle menus (press = next window). The left grip is
-                    // free since Jump moved to X. Cycles CharacterSheet -> LogBook ->
-                    // AutoMap -> TravelMap -> Rest (face buttons already open Spells A /
-                    // Inventory B). Edge-triggered on the rising edge.
-                    bool gripLeftHeld = Held(VRActionBinder.GripLeftAction);
-                    if (gripLeftHeld && !lastGripLeftHeld)
                     {
                         menuCycleIndex = (menuCycleIndex + 1) % MenuCycle.Length;
                         InputManager.Actions act = MenuCycle[menuCycleIndex];
                         im3.AddAction(act);
-                        Debug.Log("[DFUQuest3] LeftGrip -> menu cycle: " + act);
+                        Debug.Log("[DFUQuest3] Y -> menu cycle: " + act);
                     }
-                    lastGripLeftHeld = gripLeftHeld;
+                    // Left grip -> left-hand weapon/shield use (SwingWeapon).
+                    if (Pressed(VRActionBinder.GripLeftAction))
+                    {
+                        im3.AddAction(InputManager.Actions.SwingWeapon);
+                        Debug.Log("[DFUQuest3] LeftGrip -> SwingWeapon (left hand)");
+                    }
                     // X button (left primary) -> Jump (HELD, like the spacebar). DFU's
                     // AcrobatMotor checks HasAction(Jump) continuously + requires
                     // GroundedTime >= 0.1f, so hold X to jump.
@@ -267,32 +264,30 @@ namespace DFUQuest3
                     {
                         im3.AddAction(InputManager.Actions.Jump);
                     }
-                    // Left trigger -> Crouch
+                    // Left trigger -> Cast/Recast spell.
                     if (Pressed(VRActionBinder.TriggerLeftAction))
                     {
-                        im3.AddAction(InputManager.Actions.Crouch);
-                        Debug.Log("[DFUQuest3] LeftTrigger -> Crouch");
+                        im3.AddAction(InputManager.Actions.CastSpell);
+                        im3.AddAction(InputManager.Actions.RecastSpell);
+                        Debug.Log("[DFUQuest3] LeftTrigger -> Cast/Recast");
                     }
-                    // Left thumbstick click -> AutoRun
+                    // Left thumbstick click -> Crouch.
                     if (Pressed(VRActionBinder.StickClickLeftAction))
                     {
-                        im3.AddAction(InputManager.Actions.AutoRun);
-                        Debug.Log("[DFUQuest3] LeftStickClick -> AutoRun");
+                        im3.AddAction(InputManager.Actions.Crouch);
+                        Debug.Log("[DFUQuest3] LeftStickClick -> Crouch");
                     }
-                    // Right thumbstick click -> (reserved; attack moved to right grip)
-                    // Right grip -> attack (tap) + Run (hold). The grip is the side
-                    // trigger — much easier to swing than a stick click. DFU's
-                    // WeaponManager checks ActionStarted(SwingWeapon) to swing (edge);
-                    // Run is a held action. Tap the grip to swing, hold it to run.
-                    bool gripRightHeld = Held(VRActionBinder.GripRightAction);
+                    // Right thumbstick click -> Toggle run (AutoRun toggles run on/off).
+                    if (Pressed(VRActionBinder.StickClickRightAction))
+                    {
+                        im3.AddAction(InputManager.Actions.AutoRun);
+                        Debug.Log("[DFUQuest3] RightStickClick -> Toggle run");
+                    }
+                    // Right grip -> right-hand weapon/shield use (SwingWeapon).
                     if (Pressed(VRActionBinder.GripRightAction))
                     {
                         im3.AddAction(InputManager.Actions.SwingWeapon);
-                        Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon");
-                    }
-                    if (gripRightHeld)
-                    {
-                        im3.AddAction(InputManager.Actions.Run);
+                        Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon (right hand)");
                     }
                     // Menu button -> CONTEXT-AWARE. If a window is open (WindowCount>0,
                     // i.e. not just the HUD), it acts as BACK/EXIT (close the top window).
