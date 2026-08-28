@@ -98,7 +98,11 @@ namespace DFUQuest3
                     }
                     catch { }
                 }
-                im2.vrMoveStick = stick;
+                // Left stick is 180° flipped (left->right, down->up) while the right stick
+                // reads correctly. The left controller's thumbstick reports inverted axes on
+                // this OpenXR/InputSystem layout. Negate both components so movement matches
+                // stick direction. (Right stick/turn is unaffected — it reads correctly.)
+                im2.vrMoveStick = new Vector2(-stick.x, -stick.y);
 
                 // VR turn: read the right thumbstick X and rotate the player rig's yaw.
                 // The rig (XROrigin) is parented under the Player object, so rotating it
