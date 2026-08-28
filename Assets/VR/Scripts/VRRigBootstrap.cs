@@ -27,6 +27,7 @@ namespace DFUQuest3
 
         private bool menuWired;      // wired to startup/menu camera
         private bool gameWired;      // wired to the real PlayerMouseLook camera
+        private string lastFollowError; // dedupe follow-failure logs
 
         void Start()
         {
@@ -52,35 +53,12 @@ namespace DFUQuest3
             {
                 if (!gameWired || dfCamera != gameCam)
                     Wire(gameCam, true);
-
-                // --- GAME-SCENE ONLY: root the XROrigin at the player ---
-                // The rig is DontDestroyOnLoad from the startup scene and sits at world
-                // origin while the player spawns at StartCellX/Y far away; parenting the
-                // camera under an origin-anchored XROrigin tears the view off the player
-                // and drops it inside geometry. Guarded: (1) runs only here, in the game
-                // scene (menu scene never reaches this branch), and (2) wrapped so a
-                // missing Player object logs a warning instead of throwing — the unguarded
-                // GameManager.PlayerObject access throws every frame in the menu scene and
-                // killed menu input.
-                try
-                {
-                    var gm = DaggerfallWorkshop.Game.GameManager.Instance;
-                    // PlayerObject returns null when the player doesn't exist yet
-                    // (menu/char-creation); the null check below guards that case.
-                    var playerObj = gm != null ? gm.PlayerObject : null;
-                    if (playerObj != null && xrOrigin.transform.parent != playerObj.transform)
-                    {
-                        // worldPositionStays=false: zero the XROrigin in the player's local
-                        // space so the camera (child, TrackedPoseDriver-driven) lands at the
-                        // player's world position + HMD offset.
-                        xrOrigin.transform.SetParent(playerObj.transform, false);
-                        Debug.Log("[DFUQuest3] XROrigin parented to Player object at " + playerObj.transform.position);
-                    }
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning("[DFUQuest3] XROrigin parenting skipped: " + e.Message);
-                }
+                // Rig-following is done in LateUpdate (position + yaw from the live
+                // player). Do NOT SetParent here: DFU's char-creation PlayerObject is a
+                // DIFFERENT object than the one spawned for gameplay (StartNewCharacter
+                // creates a fresh Player), so a rig parented during char-creation gets
+                // orphaned when that temp object is destroyed -> rigParent=none in
+                // gameplay. LateUpdate re-asserts the follow every frame instead.
                 return;
             }
 
@@ -94,6 +72,45 @@ namespace DFUQuest3
                     return;
                 }
                 Wire(menuCam, false);
+            }
+        }
+
+        // Make the rig (and thus camera/view) follow the live player every frame.
+        // Game-scene only. Never relies on parenting persisting: DFU's char-creation
+        // PlayerObject is a DIFFERENT object than the gameplay one (StartNewCharacter
+        // creates a fresh Player and destroys the temp), so a rig parented during
+        // char-creation gets orphaned -> rigParent=none in gameplay. Drive position and
+        // YAW explicitly each frame instead. Yaw coupling preserved: stick-yaw rotates
+        // PlayerObject (VRTriggerBridge), the rig copies that yaw, so the view turns as
+        // before. Pitch stays on VRHeadPitch (child of the rig), untouched.
+        void LateUpdate()
+        {
+            if (xrOrigin == null || !gameWired) return; // game-scene only
+            try
+            {
+                var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                var playerObj = gm != null ? gm.PlayerObject : null;
+                if (playerObj == null) return;
+
+                Transform rig = xrOrigin.transform;
+                Transform p = playerObj.transform;
+
+                // Keep the rig unparented (kill any stale half-parenting) and follow explicitly.
+                if (rig.parent != null) rig.SetParent(null, true);
+
+                // Position: player feet (HMD tracked local offset adds eye height).
+                rig.position = p.position;
+                // Rotation: yaw only, so rig/pitch-node/view turn with the player and
+                // left-stick movement (Player local space) stays calibrated.
+                rig.rotation = Quaternion.Euler(0f, p.eulerAngles.y, 0f);
+            }
+            catch (System.Exception ex)
+            {
+                if (ex.Message != lastFollowError)
+                {
+                    lastFollowError = ex.Message;
+                    Debug.LogWarning("[DFUQuest3] Rig-follow skipped: " + ex.Message);
+                }
             }
         }
 

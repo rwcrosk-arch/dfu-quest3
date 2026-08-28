@@ -97,20 +97,44 @@ namespace DFUQuest3
             if (panelGO == null) return;
 
             // Anchor the panel at a comfortable distance in front of the head, and
-            // RE-anchor if the user gets far from it. Use the HMD pose when available
-            // (correct in ALL scenes); fall back to camera transform otherwise.
-            Vector3 anchorOrigin = hasHeadPose ? headPosition : (cameraTransform != null ? cameraTransform.position : Vector3.zero);
-            Vector3 anchorForward = hasHeadPose ? (headRotation * Vector3.forward) : (cameraTransform != null ? cameraTransform.forward : Vector3.forward);
+            // RE-anchor if the user gets far from it. The rig now follows the player in
+            // gameplay (VRRigBootstrap.LateUpdate drives rig position+yaw from the live
+            // player), so the game camera (child of the rig) is at the player — anchor to
+            // the camera world transform in gameplay. In menu/char-creation tracking
+            // origin == world origin, so the HMD pose (and camera) are correct too.
+            bool inGame = gm != null && gm.StateManager != null && gm.StateManager.GameInProgress;
+            Vector3 anchorOrigin;
+            Vector3 anchorForward;
+            if (inGame && cameraTransform != null)
+            {
+                anchorOrigin = cameraTransform.position;
+                anchorForward = cameraTransform.forward;
+            }
+            else if (hasHeadPose)
+            {
+                anchorOrigin = headPosition;
+                anchorForward = headRotation * Vector3.forward;
+            }
+            else if (cameraTransform != null)
+            {
+                anchorOrigin = cameraTransform.position;
+                anchorForward = cameraTransform.forward;
+            }
+            else
+            {
+                anchorOrigin = Vector3.zero;
+                anchorForward = Vector3.forward;
+            }
 
             if (!panelAnchored || Vector3.Distance(panelGO.transform.position, anchorOrigin) > 4f)
             {
-                if (!hasHeadPose && cameraTransform == null) return; // nothing to anchor to yet
+                if (!inGame && !hasHeadPose && cameraTransform == null) return; // nothing to anchor to yet
                 Vector3 pos = anchorOrigin + anchorForward * distance;
                 pos.y = anchorOrigin.y; // keep at head height
                 panelGO.transform.position = pos;
                 panelGO.transform.rotation = Quaternion.LookRotation(pos - anchorOrigin);
                 panelAnchored = true;
-                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (HMD pose: " + hasHeadPose + ")");
+                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (game=" + inGame + ")");
             }
 
             // Sync the quad texture to DFU's current render target every frame —
