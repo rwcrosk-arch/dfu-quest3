@@ -53,19 +53,20 @@ namespace DFUQuest3
         void Update()
         {
             if (!wired) Wire();
-            // Track the REAL game camera, not Camera.main. In the game scene Camera.main
-            // is still the stale DontDestroyOnLoad startup camera (tagged MainCamera, at
-            // world origin) — that's exactly why VRRigBootstrap forces
-            // GameManager.MainCameraObject. Use GameManager.MainCamera (the real game
-            // camera, parented under the player) so the panel anchors in front of the
-            // player, not at world origin. Fall back to Camera.main only in the menu scene.
+            // Anchor to the PLAYER's head, not the camera/rig. The XROrigin is
+            // DontDestroyOnLoad from the startup scene and can end up at world origin
+            // (rigParent=none) while the player spawns 40m away — the camera (child of
+            // the rig) then sits at origin too, and a panel anchored to it is invisible.
+            // GameManager.PlayerObject is the ground truth of where the player is.
+            Transform anchor = null;
             var gm = DaggerfallWorkshop.Game.GameManager.Instance;
-            Camera cam = null;
-            if (gm != null && gm.MainCamera != null)
-                cam = gm.MainCamera;
+            if (gm != null && gm.PlayerObject != null)
+                anchor = gm.PlayerObject.transform;
+            else if (gm != null && gm.MainCamera != null)
+                anchor = gm.MainCamera.transform;
             else if (Camera.main != null)
-                cam = Camera.main;
-            if (cam != null) cameraTransform = cam.transform;
+                anchor = Camera.main.transform;
+            if (anchor != null) cameraTransform = anchor;
             if (panelGO == null) return;
 
             // The render target shows DFU's ENTIRE UI stack (menu, in-game HUD, message
