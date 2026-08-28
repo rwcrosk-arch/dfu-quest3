@@ -92,11 +92,14 @@ namespace DaggerfallWorkshop.Game
         KeyCode[] joystickUICache = new KeyCode[4]; //leftClick, rightClick, MiddleClick, Back
         // VR controller trigger click flag — set by VRPlayerInput to synthesize a left click.
         public bool vrClickQueued = false;
-        // VR "back"/Escape flag, frame-sticky like vrClickQueued. Set by the VR bridge
-        // when the controller menu button is pressed; consumed by GetBackButton* so DFU
-        // windows (which close on GetBackButtonUp) can be dismissed from VR. Cleared in
-        // LateUpdate.
-        public bool vrEscapeQueued = false;
+        // VR "back"/Escape flag as a FRAME-INDEX counter (not a bool). Set by the VR
+        // bridge when the controller menu button is pressed; consumed by GetBackButton*
+        // so DFU windows (which close on GetBackButtonUp) can be dismissed from VR.
+        // Using a frame counter (not a LateUpdate-cleared bool) sidesteps the script
+        // execution-order race: the flag survives LateUpdate, so every window sees
+        // GetBackButtonUp()==true on its next Update regardless of ordering. Nothing
+        // clears it; visibility is computed from Time.frameCount.
+        public int vrEscapeQueuedFrame = -1000;
 
         // VR override: additive VR scripts set this to the current reticle position in
         // screen pixels. When set, MousePosition returns this instead of Unity's
@@ -595,7 +598,6 @@ namespace DaggerfallWorkshop.Game
             // before the cursor settles on the button, the flag stays set until the button
             // is hovered and fires.
             vrClickQueued = false;
-            vrEscapeQueued = false;
         }
 
         void OnGUI()
@@ -1119,17 +1121,24 @@ namespace DaggerfallWorkshop.Game
 
         public bool GetBackButtonDown()
         {
-            return Input.GetKeyDown(KeyCode.Escape) || (EnableController && GetKeyDown(joystickUICache[3], false)) || vrEscapeQueued;
+            return Input.GetKeyDown(KeyCode.Escape) || (EnableController && GetKeyDown(joystickUICache[3], false)) || EscapeQueuedThisFrame();
         }
 
         public bool GetBackButtonUp()
         {
-            return Input.GetKeyUp(KeyCode.Escape) || (EnableController && GetKeyUp(joystickUICache[3], false)) || vrEscapeQueued;
+            return Input.GetKeyUp(KeyCode.Escape) || (EnableController && GetKeyUp(joystickUICache[3], false)) || EscapeQueuedThisFrame();
         }
 
         public bool GetBackButton()
         {
-            return Input.GetKey(KeyCode.Escape) || (EnableController && GetKey(joystickUICache[3], false)) || vrEscapeQueued;
+            return Input.GetKey(KeyCode.Escape) || (EnableController && GetKey(joystickUICache[3], false)) || EscapeQueuedThisFrame();
+        }
+
+        // True for the frame the VR escape was queued and the one after (harmless for
+        // Down->Up deferred-close windows). Survives LateUpdate so ordering never drops it.
+        bool EscapeQueuedThisFrame()
+        {
+            return Time.frameCount >= vrEscapeQueuedFrame && Time.frameCount <= vrEscapeQueuedFrame + 1;
         }
 
         public bool GetKey(KeyCode k, bool useSecondary = true)

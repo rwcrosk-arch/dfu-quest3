@@ -78,12 +78,21 @@ namespace DFUQuest3
             var yBtn = map.AddAction("YButton", InputActionType.Button);
             yBtn.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/secondaryButton");
             yBtn.AddBinding("<XRController>{LeftHand}/secondaryButton");
-            // Left grip -> Jump
+            // Left grip -> Jump (HELD, like the spacebar). Bind to the discrete button
+            // control (gripPressed on MetaQuestTouchPlus, gripButton on generic XRController)
+            // with the analog 'grip' axis as fallback — 'grip' alone is an AxisControl
+            // (squeeze 0-1) that can plateau under the 0.5 press point and never fire as
+            // a button. DFU's AcrobatMotor checks HasAction(Jump) continuously + requires
+            // GroundedTime >= 0.1f, so hold the grip to jump.
             var gripL = map.AddAction("GripLeft", InputActionType.Button);
+            gripL.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/gripPressed");
+            gripL.AddBinding("<XRController>{LeftHand}/gripButton");
             gripL.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{LeftHand}/grip");
             gripL.AddBinding("<XRController>{LeftHand}/grip");
             // Right grip -> Run (hold)
             var gripR = map.AddAction("GripRight", InputActionType.Button);
+            gripR.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/gripPressed");
+            gripR.AddBinding("<XRController>{RightHand}/gripButton");
             gripR.AddBinding("<MetaQuestTouchPlusControllerOpenXR>{RightHand}/grip");
             gripR.AddBinding("<XRController>{RightHand}/grip");
             // Left trigger -> Crouch
