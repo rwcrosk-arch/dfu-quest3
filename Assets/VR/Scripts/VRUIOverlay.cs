@@ -53,13 +53,19 @@ namespace DFUQuest3
         void Update()
         {
             if (!wired) Wire();
-            // Always track Camera.main, not just when null. In the game scene Camera.main
-            // becomes the real game camera, but cameraTransform was captured once in the
-            // menu scene pointing at the stale DontDestroyOnLoad startup camera (still at
-            // world origin). If we only refresh when null, the panel re-anchors to the
-            // startup camera's origin and strands the UI 40m from the player in gameplay.
-            var cam = Camera.main != null ? Camera.main.transform : null;
-            if (cam != null) cameraTransform = cam;
+            // Track the REAL game camera, not Camera.main. In the game scene Camera.main
+            // is still the stale DontDestroyOnLoad startup camera (tagged MainCamera, at
+            // world origin) — that's exactly why VRRigBootstrap forces
+            // GameManager.MainCameraObject. Use GameManager.MainCamera (the real game
+            // camera, parented under the player) so the panel anchors in front of the
+            // player, not at world origin. Fall back to Camera.main only in the menu scene.
+            var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+            Camera cam = null;
+            if (gm != null && gm.MainCamera != null)
+                cam = gm.MainCamera;
+            else if (Camera.main != null)
+                cam = Camera.main;
+            if (cam != null) cameraTransform = cam.transform;
             if (panelGO == null) return;
 
             // The render target shows DFU's ENTIRE UI stack (menu, in-game HUD, message
