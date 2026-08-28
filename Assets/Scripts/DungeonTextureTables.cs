@@ -34,8 +34,14 @@ namespace DaggerfallWorkshop
             if (climate == (int)MapsFile.Climates.Ocean)
                 climate = (int)MapsFile.Climates.Swamp;
 
-            int classicIndexValue = Game.Utility.TravelTimeCalculator.climateIndices[climate - (int)MapsFile.Climates.Ocean];
-            int climateBasedIndexValue = climate - (int)MapsFile.Climates.Desert;
+            // Defensive clamp: climateIndices has 10 entries (indices 0-9), so
+            // (climate - Ocean) must be in [0,9]. A spawn climate outside that range
+            // (e.g. a dungeon/region climate value) throws IndexOutOfRangeException
+            // and aborts StartNewCharacter -> frozen black screen. Clamp to a valid
+            // index so char-creation always completes.
+            int climateIdx = Mathf.Clamp(climate - (int)MapsFile.Climates.Ocean, 0, Game.Utility.TravelTimeCalculator.climateIndices.Length - 1);
+            int classicIndexValue = Game.Utility.TravelTimeCalculator.climateIndices[climateIdx];
+            int climateBasedIndexValue = Mathf.Clamp(climate - (int)MapsFile.Climates.Desert, 0, climateTextureArchiveIndices.Length - 1);
 
             int climateTextureArchiveIndex;
             if (randomDungeonTextures == 0) // classic algorithm
