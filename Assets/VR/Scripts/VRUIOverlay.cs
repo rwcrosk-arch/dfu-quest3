@@ -97,55 +97,20 @@ namespace DFUQuest3
             if (panelGO == null) return;
 
             // Anchor the panel at a comfortable distance in front of the head, and
-            // RE-anchor if the user gets far from it.
-            //
-            // SCENE-GATED ANCHOR:
-            // - Gameplay: anchor to GameManager.PlayerObject (world position = where the
-            //   player body actually is). The raw HMD pose reads in XR tracking space
-            //   (relative to the XROrigin), which is stuck at world origin in gameplay
-            //   (rigParent=none), so HMD-pose anchoring strands the panel 40m from the
-            //   player. PlayerObject is the ground truth in gameplay.
-            // - Menu / char-creation: PlayerObject isn't the playable body (it's the
-            //   char-creation avatar or absent), so anchor to the HMD pose, which there
-            //   aligns with the camera (tracking origin == world origin).
-            Vector3 anchorOrigin;
-            Vector3 anchorForward;
-            var gmAnchor = DaggerfallWorkshop.Game.GameManager.Instance;
-            if (gmAnchor != null && gmAnchor.PlayerObject != null && HasGameCamera())
-            {
-                // Gameplay active.
-                var po = gmAnchor.PlayerObject.transform;
-                anchorOrigin = po.position;
-                anchorForward = po.forward;
-                // Keep the panel at the player's eye height.
-                anchorOrigin.y = (hasHeadPose ? headPosition.y : po.position.y);
-            }
-            else if (hasHeadPose)
-            {
-                // Menu / char-creation: HMD pose (aligned with camera there).
-                anchorOrigin = headPosition;
-                anchorForward = headRotation * Vector3.forward;
-            }
-            else if (cameraTransform != null)
-            {
-                anchorOrigin = cameraTransform.position;
-                anchorForward = cameraTransform.forward;
-            }
-            else
-            {
-                anchorOrigin = Vector3.zero;
-                anchorForward = Vector3.forward;
-            }
+            // RE-anchor if the user gets far from it. Use the HMD pose when available
+            // (correct in ALL scenes); fall back to camera transform otherwise.
+            Vector3 anchorOrigin = hasHeadPose ? headPosition : (cameraTransform != null ? cameraTransform.position : Vector3.zero);
+            Vector3 anchorForward = hasHeadPose ? (headRotation * Vector3.forward) : (cameraTransform != null ? cameraTransform.forward : Vector3.forward);
 
             if (!panelAnchored || Vector3.Distance(panelGO.transform.position, anchorOrigin) > 4f)
             {
+                if (!hasHeadPose && cameraTransform == null) return; // nothing to anchor to yet
                 Vector3 pos = anchorOrigin + anchorForward * distance;
                 pos.y = anchorOrigin.y; // keep at head height
                 panelGO.transform.position = pos;
                 panelGO.transform.rotation = Quaternion.LookRotation(pos - anchorOrigin);
                 panelAnchored = true;
-                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (anchor=" +
-                    (gmAnchor != null && gmAnchor.PlayerObject != null && HasGameCamera() ? "player" : "hmd") + ")");
+                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (HMD pose: " + hasHeadPose + ")");
             }
 
             // Sync the quad texture to DFU's current render target every frame —
@@ -159,18 +124,6 @@ namespace DFUQuest3
             }
 
             HandlePointer();
-        }
-
-        // True when the real DFU game camera (the one carrying PlayerMouseLook) is
-        // present — i.e. we are in gameplay, not the menu/char-creation scene.
-        bool HasGameCamera()
-        {
-            foreach (Camera c in Camera.allCameras)
-            {
-                if (c != null && c.GetComponent<PlayerMouseLook>() != null)
-                    return true;
-            }
-            return false;
         }
 
         void BuildPanel()
