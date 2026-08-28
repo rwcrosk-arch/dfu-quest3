@@ -16,6 +16,20 @@ namespace DFUQuest3
     public class VRTriggerBridge : MonoBehaviour
     {
         bool lastTrigger;
+        // Cycle state for the left-grip menu cycler: opens a different DFU window per
+        // press (CharacterSheet -> Inventory -> QuestJournal -> AutoMap -> TravelMap -> Rest).
+        int menuCycleIndex = -1;
+        bool lastGripLeftHeld;
+        // Cycle through the non-face-button DFU windows. Face buttons already open
+        // Spells (A) and Inventory (B), so the cycler covers the rest.
+        static readonly InputManager.Actions[] MenuCycle =
+        {
+            InputManager.Actions.CharacterSheet,
+            InputManager.Actions.LogBook,  // opens the quest journal
+            InputManager.Actions.AutoMap,
+            InputManager.Actions.TravelMap,
+            InputManager.Actions.Rest,
+        };
 
         // Self-wire at runtime so VRSceneSetup.cs (and VRUIOverlay.cs) stay untouched.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -71,6 +85,19 @@ namespace DFUQuest3
                 if (im != null)
                 {
                     im.vrClickQueued = true;
+                    // Action button: in gameplay (PlayerMotor present) the trigger also
+                    // fires ActivateCenterObject so it opens doors / uses objects, not just
+                    // clicks the menu cursor. (In the menu the click path handles buttons.)
+                    try
+                    {
+                        var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                        if (gm != null && gm.PlayerMotor != null)
+                        {
+                            im.AddAction(InputManager.Actions.ActivateCenterObject);
+                            Debug.Log("[DFUQuest3] TriggerBridge: ActivateCenterObject");
+                        }
+                    }
+                    catch { }
                     Debug.Log("[DFUQuest3] TriggerBridge: click queued");
                 }
             }
@@ -220,7 +247,19 @@ namespace DFUQuest3
                         im3.AddAction(InputManager.Actions.RecastSpell);
                         Debug.Log("[DFUQuest3] Y -> RecastSpell");
                     }
-                    // Left grip -> (unused for jump; X button is jump now)
+                    // Left grip -> cycle menus (press = next window). The left grip is
+                    // free since Jump moved to X. Cycles CharacterSheet -> LogBook ->
+                    // AutoMap -> TravelMap -> Rest (face buttons already open Spells A /
+                    // Inventory B). Edge-triggered on the rising edge.
+                    bool gripLeftHeld = Held(VRActionBinder.GripLeftAction);
+                    if (gripLeftHeld && !lastGripLeftHeld)
+                    {
+                        menuCycleIndex = (menuCycleIndex + 1) % MenuCycle.Length;
+                        InputManager.Actions act = MenuCycle[menuCycleIndex];
+                        im3.AddAction(act);
+                        Debug.Log("[DFUQuest3] LeftGrip -> menu cycle: " + act);
+                    }
+                    lastGripLeftHeld = gripLeftHeld;
                     // X button (left primary) -> Jump (HELD, like the spacebar). DFU's
                     // AcrobatMotor checks HasAction(Jump) continuously + requires
                     // GroundedTime >= 0.1f, so hold X to jump.
