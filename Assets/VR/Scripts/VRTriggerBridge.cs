@@ -115,11 +115,11 @@ namespace DFUQuest3
                     }
                     catch { }
                 }
-                // Left stick is 180° flipped (left->right, down->up) while the right stick
-                // reads correctly. The left controller's thumbstick reports inverted axes on
-                // this OpenXR/InputSystem layout. Negate both components so movement matches
-                // stick direction. (Right stick/turn is unaffected — it reads correctly.)
-                im2.vrMoveStick = new Vector2(-stick.x, -stick.y);
+                // Left stick reads inverted on this layout. The previous 180° negate
+                // (-stick.x, -stick.y) was compensating for the OLD rig-yaw setup; now that
+                // yaw rotates the Player object, that negate is backwards and left stick
+                // reads inverted. Feed the raw stick through.
+                im2.vrMoveStick = new Vector2(stick.x, stick.y);
 
                 // VR turn: read the right thumbstick and rotate the player rig.
                 // X = yaw (turn left/right), Y = pitch (look up/down).
