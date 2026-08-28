@@ -178,14 +178,28 @@ namespace DFUQuest3
                 return; // nothing to anchor to yet
             }
 
-            if (!panelAnchored || Vector3.Distance(panelGO.transform.position, anchorOrigin) > 4f)
+            // Smoothly follow the anchor each frame (no hard "pop" when the player moves
+            // far). The panel glides toward its target position/rotation instead of
+            // snapping when the >4m re-anchor threshold trips.
+            Vector3 targetPos = anchorOrigin + anchorForward * distance;
+            targetPos.y = anchorOrigin.y; // keep at head height
+            Quaternion targetRot = Quaternion.LookRotation(targetPos - anchorOrigin);
+
+            if (!panelAnchored)
             {
-                Vector3 pos = anchorOrigin + anchorForward * distance;
-                pos.y = anchorOrigin.y; // keep at head height
-                panelGO.transform.position = pos;
-                panelGO.transform.rotation = Quaternion.LookRotation(pos - anchorOrigin);
+                // First placement: snap (no visible jump from a far-away start).
+                panelGO.transform.position = targetPos;
+                panelGO.transform.rotation = targetRot;
                 panelAnchored = true;
                 Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (player=" + (playerT != null) + ")");
+            }
+            else
+            {
+                // Smooth follow: lerp toward the target each frame. Fast enough to feel
+                // responsive, slow enough to avoid jitter.
+                float t = 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime);
+                panelGO.transform.position = Vector3.Lerp(panelGO.transform.position, targetPos, t);
+                panelGO.transform.rotation = Quaternion.Slerp(panelGO.transform.rotation, targetRot, t);
             }
 
             // Sync the quad texture to DFU's current render target every frame —
@@ -208,6 +222,11 @@ namespace DFUQuest3
             panelGO = GameObject.CreatePrimitive(PrimitiveType.Quad);
             panelGO.name = "DFU VR UI Panel";
             panelGO.transform.localScale = new Vector3(width, height, 1f);
+
+            // Remove the MeshCollider that CreatePrimitive adds by default — it makes the
+            // panel a physical object that blocks the player's CharacterController movement.
+            var col = panelGO.GetComponent<Collider>();
+            if (col != null) UnityEngine.Object.Destroy(col);
 
             var mat = new Material(Shader.Find("Unlit/Texture"));
             mat.mainTexture = CreateTargetTexture();
@@ -281,6 +300,15 @@ namespace DFUQuest3
             Vector3 origin = Vector3.zero, dir = Vector3.forward;
             bool hasRay = false;
 
+            // The controller pose (MCP/InputSystem/legacy) is in XR TRACKING SPACE
+            // (relative to the XROrigin), but the panel is anchored in WORLD space at the
+            // player. In gameplay the rig is at the player (40m from tracking origin), so
+            // a raw tracking-space ray never reaches the panel. Offset the controller ray
+            // origin by the rig's world position to bring it into world space.
+            Vector3 rigWorld = Vector3.zero;
+            var rigRef = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+            if (rigRef != null) rigWorld = rigRef.transform.position;
+
             // === Head-gaze as the reliable pointer (head tracking is solid; the OpenXR
             // controller may not materialize to Unity app code on Unity 6). The controller
             // overrides when it surfaces; otherwise the head-gaze fallback below applies.
@@ -290,7 +318,7 @@ namespace DFUQuest3
             // but the on-device MCP server reads it correctly. Use that when valid.
             if (poseBridge != null && poseBridge.controllerValid)
             {
-                origin = poseBridge.controllerPosition;
+                origin = poseBridge.controllerPosition + rigWorld;
                 dir = poseBridge.controllerRotation * Vector3.forward;
                 hasRay = true;
             }
@@ -313,7 +341,7 @@ namespace DFUQuest3
                     continue;
                 if (xrCtrl.TryGetChildControl<UnityEngine.InputSystem.Controls.AxisControl>("trigger") is var tc && tc != null)
                     trigger = tc.ReadValue() > 0.5f;
-                origin = cp;
+                origin = cp + rigWorld;
                 dir = cr * Vector3.forward;
                 hasRay = true;
                 break;
@@ -333,7 +361,7 @@ namespace DFUQuest3
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion cr))
                         {
                             if (cp.sqrMagnitude < 0.001f) continue; // zero pose = dead controller, skip
-                            origin = cp;
+                            origin = cp + rigWorld;
                             dir = cr * Vector3.forward;
                             hasRay = true;
                             break;
@@ -430,7 +458,7 @@ namespace DFUQuest3
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
                             d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
                         {
-                            origin = hp;
+                            origin = hp + rigWorld;
                             dir = hr * Vector3.forward;
                             hasRay = true;
                             break;
