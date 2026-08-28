@@ -50,15 +50,42 @@ namespace DFUQuest3
             Wire();
         }
 
+        // Resolved once via HMD pose; falls back to camera transform when tracking is unavailable.
+        Vector3 headPosition;
+        Quaternion headRotation;
+        bool hasHeadPose;
+
         void Update()
         {
             if (!wired) Wire();
-            // Track the REAL game camera, not Camera.main. In the game scene Camera.main
-            // is still the stale DontDestroyOnLoad startup camera (tagged MainCamera, at
-            // world origin) — that's exactly why VRRigBootstrap forces
-            // GameManager.MainCameraObject. Use GameManager.MainCamera (the real game
-            // camera, parented under the player) so the panel anchors in front of the
-            // player, not at world origin. Fall back to Camera.main only in the menu scene.
+
+            // === Resolve the head pose FIRST (scene-independent, always correct) ===
+            // The HMD's tracked pose is the single ground truth for where the user's
+            // head is, in every scene (menu, character creation, gameplay). It is
+            // unaffected by the XROrigin being at world origin or GameManager camera
+            // ambiguity. Read it via legacy InputDevices (reliable on Unity 6 + OpenXR,
+            // unlike controllers).
+            hasHeadPose = false;
+            headPosition = Vector3.zero;
+            headRotation = Quaternion.identity;
+            var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+            InputDevices.GetDevices(hDevices);
+            foreach (var d in hDevices)
+            {
+                if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
+                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                {
+                    headPosition = hp;
+                    headRotation = hr;
+                    hasHeadPose = true;
+                    break;
+                }
+            }
+
+            // Keep cameraTransform as a fallback only (menu scene before HMD pose is
+            // available, or tracking lost). Prefer GameManager.MainCamera (game scene)
+            // over Camera.main (stale startup camera) when no HMD pose.
             var gm = DaggerfallWorkshop.Game.GameManager.Instance;
             Camera cam = null;
             if (gm != null && gm.MainCamera != null)
@@ -66,27 +93,24 @@ namespace DFUQuest3
             else if (Camera.main != null)
                 cam = Camera.main;
             if (cam != null) cameraTransform = cam.transform;
+
             if (panelGO == null) return;
 
-            // The render target shows DFU's ENTIRE UI stack (menu, in-game HUD, message
-            // boxes, intro text). Keep the quad visible in-game too — hiding it removed
-            // the in-game UI: the intro box never showed and a pending modal froze the
-            // game (weather inits then stalls, no input). The ray drives the cursor so
-            // the user can click the intro box's Continue button and HUD elements.
-
             // Anchor the panel at a comfortable distance in front of the head, and
-            // RE-anchor if the user gets far from it (so it's never stranded in the
-            // distance). Old-fork stationary behavior, but always reachable.
-            if (!panelAnchored || (cameraTransform != null &&
-                Vector3.Distance(panelGO.transform.position, cameraTransform.position) > 4f))
+            // RE-anchor if the user gets far from it. Use the HMD pose when available
+            // (correct in ALL scenes); fall back to camera transform otherwise.
+            Vector3 anchorOrigin = hasHeadPose ? headPosition : (cameraTransform != null ? cameraTransform.position : Vector3.zero);
+            Vector3 anchorForward = hasHeadPose ? (headRotation * Vector3.forward) : (cameraTransform != null ? cameraTransform.forward : Vector3.forward);
+
+            if (!panelAnchored || Vector3.Distance(panelGO.transform.position, anchorOrigin) > 4f)
             {
-                if (cameraTransform == null) return; // wait for camera
-                Vector3 pos = cameraTransform.position + cameraTransform.forward * distance;
-                pos.y = cameraTransform.position.y; // keep at head height
+                if (!hasHeadPose && cameraTransform == null) return; // nothing to anchor to yet
+                Vector3 pos = anchorOrigin + anchorForward * distance;
+                pos.y = anchorOrigin.y; // keep at head height
                 panelGO.transform.position = pos;
-                panelGO.transform.rotation = Quaternion.LookRotation(pos - cameraTransform.position);
+                panelGO.transform.rotation = Quaternion.LookRotation(pos - anchorOrigin);
                 panelAnchored = true;
-                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position);
+                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (HMD pose: " + hasHeadPose + ")");
             }
 
             // Sync the quad texture to DFU's current render target every frame —

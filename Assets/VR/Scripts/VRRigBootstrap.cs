@@ -65,6 +65,8 @@ namespace DFUQuest3
                 try
                 {
                     var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                    // PlayerObject returns null when the player doesn't exist yet
+                    // (menu/char-creation); the null check below guards that case.
                     var playerObj = gm != null ? gm.PlayerObject : null;
                     if (playerObj != null && xrOrigin.transform.parent != playerObj.transform)
                     {
@@ -72,7 +74,7 @@ namespace DFUQuest3
                         // space so the camera (child, TrackedPoseDriver-driven) lands at the
                         // player's world position + HMD offset.
                         xrOrigin.transform.SetParent(playerObj.transform, false);
-                        Debug.Log("[DFUQuest3] XROrigin parented to Player object.");
+                        Debug.Log("[DFUQuest3] XROrigin parented to Player object at " + playerObj.transform.position);
                     }
                 }
                 catch (System.Exception e)
