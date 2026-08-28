@@ -255,6 +255,14 @@ namespace DFUQuest3
                     devList += dd.name + "(" + dd.characteristics + ") ";
                 // Log the ray source/dir and panel hit UV so we can calibrate aim headlessly.
                 var panelStr = (panelGO != null) ? panelGO.transform.position.ToString() : "none";
+                // DIAG: which camera/rig are we tracking, and where are they?
+                string camDiag = "camTransform=" + (cameraTransform != null ? cameraTransform.position.ToString() : "null");
+                var gmDiag = DaggerfallWorkshop.Game.GameManager.Instance;
+                if (gmDiag != null && gmDiag.MainCamera != null)
+                    camDiag += " gmMainCam=" + gmDiag.MainCamera.transform.position;
+                var rigDiag = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                if (rigDiag != null)
+                    camDiag += " rig=" + rigDiag.transform.position + " rigParent=" + (rigDiag.transform.parent != null ? rigDiag.transform.parent.name : "none");
                 string mcpInfo = (poseBridge != null) ?
                     ("valid=" + poseBridge.controllerValid + " pos=" + poseBridge.controllerPosition + " rot=" + poseBridge.controllerRotation) :
                     "no-bridge";
@@ -274,7 +282,7 @@ namespace DFUQuest3
                     isCount++;
                     isDev += dev.name + "[" + dev.layout + "] ";
                 }
-                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
+                Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | {camDiag} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
             // If no controller ray, use head-gaze from the OpenXR head-tracking device
@@ -362,8 +370,19 @@ namespace DFUQuest3
             }
             else if (reticleGO != null)
             {
-                reticleGO.SetActive(false);
-                if (rayLine != null) rayLine.enabled = false;
+                // Always show the reticle at a fixed distance along the aim ray so the
+                // user always sees where they're aiming, even when the ray misses the
+                // panel (e.g. panel stranded far away). This makes the action-button
+                // location intuitive in gameplay.
+                reticleGO.SetActive(true);
+                reticleGO.transform.position = origin + dir.normalized * 2.0f;
+                reticleGO.transform.rotation = Quaternion.identity;
+                if (rayLine != null)
+                {
+                    rayLine.SetPosition(0, origin);
+                    rayLine.SetPosition(1, origin + dir.normalized * 2.0f);
+                    rayLine.enabled = true;
+                }
             }
 
             // Drive DFU's cursor to the panel position.
