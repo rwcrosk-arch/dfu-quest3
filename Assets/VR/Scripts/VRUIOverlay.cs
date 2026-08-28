@@ -50,67 +50,42 @@ namespace DFUQuest3
             Wire();
         }
 
-        // Resolved once via HMD pose; falls back to camera transform when tracking is unavailable.
-        Vector3 headPosition;
-        Quaternion headRotation;
-        bool hasHeadPose;
-
         void Update()
         {
             if (!wired) Wire();
 
-            // === Resolve the head pose FIRST (scene-independent, always correct) ===
-            // The HMD's tracked pose is the single ground truth for where the user's
-            // head is, in every scene (menu, character creation, gameplay). It is
-            // unaffected by the XROrigin being at world origin or GameManager camera
-            // ambiguity. Read it via legacy InputDevices (reliable on Unity 6 + OpenXR,
-            // unlike controllers).
-            hasHeadPose = false;
-            headPosition = Vector3.zero;
-            headRotation = Quaternion.identity;
-            var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-            InputDevices.GetDevices(hDevices);
-            foreach (var d in hDevices)
-            {
-                if ((d.characteristics & InputDeviceCharacteristics.HeadMounted) != 0 &&
-                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
-                {
-                    headPosition = hp;
-                    headRotation = hr;
-                    hasHeadPose = true;
-                    break;
-                }
-            }
-
-            // Keep cameraTransform as a fallback only (menu scene before HMD pose is
-            // available, or tracking lost). Prefer GameManager.MainCamera (game scene)
-            // over Camera.main (stale startup camera) when no HMD pose.
-            var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+            // The camera transform is now world-correct in EVERY scene: the rig follows
+            // the player in world space each frame (VRRigBootstrap.LateUpdate), and in
+            // menu/char-creation tracking origin == world origin. Anchor the panel to the
+            // camera — no scene gating, no raw HMD tracking-space reads (which read in
+            // tracking space, relative to the XROrigin, and are wrong in gameplay when
+            // the rig was at origin).
             Camera cam = null;
+            var gm = DaggerfallWorkshop.Game.GameManager.Instance;
             if (gm != null && gm.MainCamera != null)
                 cam = gm.MainCamera;
             else if (Camera.main != null)
                 cam = Camera.main;
             if (cam != null) cameraTransform = cam.transform;
 
-            if (panelGO == null) return;
+            if (panelGO == null || cameraTransform == null) return;
 
             // Anchor the panel at a comfortable distance in front of the head, and
-            // RE-anchor if the user gets far from it. Use the HMD pose when available
-            // (correct in ALL scenes); fall back to camera transform otherwise.
-            Vector3 anchorOrigin = hasHeadPose ? headPosition : (cameraTransform != null ? cameraTransform.position : Vector3.zero);
-            Vector3 anchorForward = hasHeadPose ? (headRotation * Vector3.forward) : (cameraTransform != null ? cameraTransform.forward : Vector3.forward);
+            // RE-anchor if the user gets far from it.
+            Vector3 anchorOrigin = cameraTransform.position;
+            Vector3 anchorForward = cameraTransform.forward;
+            anchorForward.y = 0f;
+            if (anchorForward.sqrMagnitude < 0.001f) anchorForward = Vector3.forward;
+            anchorForward.Normalize();
 
             if (!panelAnchored || Vector3.Distance(panelGO.transform.position, anchorOrigin) > 4f)
             {
-                if (!hasHeadPose && cameraTransform == null) return; // nothing to anchor to yet
                 Vector3 pos = anchorOrigin + anchorForward * distance;
                 pos.y = anchorOrigin.y; // keep at head height
                 panelGO.transform.position = pos;
                 panelGO.transform.rotation = Quaternion.LookRotation(pos - anchorOrigin);
                 panelAnchored = true;
-                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (HMD pose: " + hasHeadPose + ")");
+                Debug.Log("[DFUQuest3] Menu panel anchored at " + panelGO.transform.position + " (cam=" + anchorOrigin + ")");
             }
 
             // Sync the quad texture to DFU's current render target every frame —
@@ -309,8 +284,16 @@ namespace DFUQuest3
                 Debug.Log($"[DFUQuest3] legacyDevices=[{devList}] | rayOrigin={origin} rayDir={dir} hasRay={hasRay} uv={lastUv} trig={trigger} | panelPos={panelStr} | {camDiag} | MCP={mcpInfo} | trigVals=[{trigVals}] | INPUTSYSTEM({isCount}): {isDev}");
             }
 
-            // If no controller ray, use head-gaze from the OpenXR head-tracking device
-            // (reliable — the head device works via legacy, unlike controllers).
+            // If no controller ray, use head-gaze. Prefer the camera transform (now
+            // world-correct: the rig follows the player), which is reliable and avoids
+            // the raw HMD tracking-space pose that's wrong in gameplay.
+            if (!hasRay && cameraTransform != null)
+            {
+                origin = cameraTransform.position;
+                dir = cameraTransform.forward;
+                hasRay = true;
+            }
+            // Fallback: OpenXR head-tracking device (tracking-space; only if no camera).
             if (!hasRay)
             {
                 var hDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
@@ -327,13 +310,6 @@ namespace DFUQuest3
                         break;
                     }
                 }
-            }
-
-            // Last resort: camera transform.
-            if (!hasRay && cameraTransform != null)
-            {
-                origin = cameraTransform.position;
-                dir = cameraTransform.forward;
             }
 
             // Raycast to panel -> UV.

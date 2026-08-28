@@ -27,6 +27,7 @@ namespace DFUQuest3
 
         private bool menuWired;      // wired to startup/menu camera
         private bool gameWired;      // wired to the real PlayerMouseLook camera
+        private Transform followTarget; // player transform to track in LateUpdate
 
         void Start()
         {
@@ -53,34 +54,25 @@ namespace DFUQuest3
                 if (!gameWired || dfCamera != gameCam)
                     Wire(gameCam, true);
 
-                // --- GAME-SCENE ONLY: root the XROrigin at the player ---
-                // The rig is DontDestroyOnLoad from the startup scene and sits at world
-                // origin while the player spawns at StartCellX/Y far away; parenting the
-                // camera under an origin-anchored XROrigin tears the view off the player
-                // and drops it inside geometry. Guarded: (1) runs only here, in the game
-                // scene (menu scene never reaches this branch), and (2) wrapped so a
-                // missing Player object logs a warning instead of throwing — the unguarded
-                // GameManager.PlayerObject access throws every frame in the menu scene and
-                // killed menu input.
+                // --- GAME-SCENE ONLY: make the rig follow the player body every frame. ---
+                // Do NOT SetParent the rig under the Player: DFU moves the Player via
+                // StreamingWorld.RepositionPlayer / CharacterController and never knows the
+                // rig exists; a parented XROrigin also re-derives its origin from tracking
+                // space each frame, which is why the parent never stuck (rigParent=none at
+                // world origin while the player was 40m away). Instead move the rig in
+                // world space from LateUpdate: rig world position = player position, so the
+                // camera (child, TrackedPoseDriver with HMD local pose) lands at
+                // playerPos + HMD tracking offset — head follows the body in gameplay.
+                // In menu/char-creation the player is absent or at origin/feet and the
+                // tracking origin == world origin, so the same rule is already correct.
                 try
                 {
                     var gm = DaggerfallWorkshop.Game.GameManager.Instance;
-                    // PlayerObject returns null when the player doesn't exist yet
-                    // (menu/char-creation); the null check below guards that case.
                     var playerObj = gm != null ? gm.PlayerObject : null;
-                    if (playerObj != null && xrOrigin.transform.parent != playerObj.transform)
-                    {
-                        // worldPositionStays=false: zero the XROrigin in the player's local
-                        // space so the camera (child, TrackedPoseDriver-driven) lands at the
-                        // player's world position + HMD offset.
-                        xrOrigin.transform.SetParent(playerObj.transform, false);
-                        Debug.Log("[DFUQuest3] XROrigin parented to Player object at " + playerObj.transform.position);
-                    }
+                    if (playerObj != null)
+                        followTarget = playerObj.transform;
                 }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning("[DFUQuest3] XROrigin parenting skipped: " + e.Message);
-                }
+                catch (System.Exception) { /* Player not up yet */ }
                 return;
             }
 
@@ -95,6 +87,21 @@ namespace DFUQuest3
                 }
                 Wire(menuCam, false);
             }
+        }
+
+        // Move the rig to follow the player in world space every frame, AFTER DFU's
+        // motors and the TrackedPoseDriver's Update pass (TPD is BeforeRender, so it
+        // composes the HMD local offset on top of the moved rig at render time).
+        // The camera (child of the rig) thus lands at playerPos + HMD offset.
+        void LateUpdate()
+        {
+            if (xrOrigin == null || followTarget == null) return;
+            Vector3 p = followTarget.position;
+            // Keep the rig on the ground plane under the player; the HMD local offset
+            // supplies standing height. Do NOT copy rotation — DFU yaw is applied by
+            // VRTriggerBridge rotating the Player itself; rotating the rig too would
+            // double-yaw.
+            xrOrigin.transform.position = new Vector3(p.x, p.y, p.z);
         }
 
         Camera FindGameCamera<T>() where T : Component
