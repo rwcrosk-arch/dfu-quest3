@@ -82,6 +82,27 @@ in gameplay. This is the active frontier.
   panel quad not rendering? DaggerfallUI.CustomRenderTarget not drawing the HUD in-game?
   the panel being hidden by the IsPlayingGame gate?).
 
+## 7. [DefaultExecutionOrder(100)] on VRTriggerBridge broke menu clicks (commit 89e6331 -> 910b306)
+- What: To make ActionStarted controls (ReadyWeapon/SwingWeapon/Jump) fire, I added
+  [DefaultExecutionOrder(100)] to VRTriggerBridge so it runs AFTER InputManager.Update
+  (which clears currentActions at its start). This DID fix ActionStarted controls.
+- Why it broke clicks: VRTriggerBridge sets vrClickQueued (the menu-click flag). With order
+  100 it ran AFTER the UI already read the flag at order 0, and InputManager clears it in
+  LateUpdate — so clicks never registered. Symptom: new-game menu clicks stopped working.
+- Reverted/fixed: commit 910b306. Split into TWO components with their required orders:
+  - VRTriggerBridge (DEFAULT order) — sets vrClickQueued BEFORE the UI reads it → menu clicks.
+  - VRActionInjector (NEW, DefaultExecutionOrder[100]) — does the AddAction injections,
+    AFTER InputManager.Update clears currentActions → ActionStarted controls.
+- Lesson: vrClickQueued (needs order 0, before UI) and AddAction injection (needs order 100,
+  after InputManager.Update clears) have CONFLICTING execution-order requirements. They must
+  live in separate MonoBehaviours with their own DefaultExecutionOrder. Never put both in one.
+- STATUS (milestone-jump-run-menuclicks @ 910b306): jump, run toggle, and menu clicks work.
+  STILL BROKEN: unsheathe (A=ReadyWeapon), spell cast (left trigger=RecastSpell) — both are
+  action-injected but DFU's WeaponManager/PlayerSpellCasting still don't fire on them
+  (need investigation: maybe ActionStarted reads on the frame AFTER the one we inject? or the
+  window/manager needs the action held? or these specific consumers run at order < 100, before
+  VRActionInjector?). And pause menu (menu button) still doesn't open pause options.
+
 ================================================================================
 ## OTHER FIXES THAT WORKED (for reference, do not regress)
 - Spell book stuck menu: new Texture2D(0,0,...) throws in Unity 6 (was valid in 2019.4).
