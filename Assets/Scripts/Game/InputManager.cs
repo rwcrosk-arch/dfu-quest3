@@ -1134,11 +1134,14 @@ namespace DaggerfallWorkshop.Game
             return Input.GetKey(KeyCode.Escape) || (EnableController && GetKey(joystickUICache[3], false)) || EscapeQueuedThisFrame();
         }
 
-        // True for the frame the VR escape was queued and the one after (harmless for
+        // True for the frame the VR escape was queued and the two after (harmless for
         // Down->Up deferred-close windows). Survives LateUpdate so ordering never drops it.
+        // +2 window: the pause-menu's Update (which runs AFTER VRTriggerBridge.Update on
+        // the same frame) must see GetBackButtonUp on the next frame even if
+        // InputManager.Update runs before the window.
         bool EscapeQueuedThisFrame()
         {
-            return Time.frameCount >= vrEscapeQueuedFrame && Time.frameCount <= vrEscapeQueuedFrame + 1;
+            return Time.frameCount >= vrEscapeQueuedFrame && Time.frameCount <= vrEscapeQueuedFrame + 2;
         }
 
         public bool GetKey(KeyCode k, bool useSecondary = true)
