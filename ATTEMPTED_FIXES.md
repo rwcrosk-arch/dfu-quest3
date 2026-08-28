@@ -1,0 +1,97 @@
+# DFU Quest3 VR — Attempted Fixes That Didn't Work
+
+Purpose: a living log of fixes we tried that FAILED or REGRESSED, so future models/sessions
+don't re-invent the wheel. Each entry: what we tried, why it failed, the commit/revert that
+removed it, and the lesson. Append new failures here. Do NOT delete entries — mark superseded.
+
+Repo: rwcrosk-arch/dfu-quest3. Device: Quest 3, package com.dfworkshop.dfuquest3.
+Build: ~/Unity/Hub/Editor/6000.0.82f1/Editor/Unity -batchmode -quit -nographics -buildTarget
+Android -projectPath ~/Projects/dfu-quest3 -executeMethod BuildDFU.BuildAndroidDev
+APK: ~/dfu-builds/android/DFU.apk. Device log: .../files/Player.log (mirror to ~/dfu-current.log).
+
+================================================================================
+## THE CENTRAL PROBLEM (still open as of stable-gameplay-loads / da6703c)
+The VR UI panel (world-space quad showing DFU's OnGUI UI RenderTexture) is INVISIBLE in
+GAMEPLAY. Root cause chain: the XROrigin sits at world origin (rigParent=none) while the
+player body is at (12.75, 0.96, 41.80) in the dungeon. The game camera is a child of the rig,
+so it's at origin too — 40m from the player. The UI panel anchors to the camera/HMD, so it's
+40m away and invisible. The rig-follow fix (3e2e6a8) drives rig position+yaw from the player
+every LateUpdate, which SHOULD put the camera at the player — but the panel is STILL absent
+in gameplay. This is the active frontier.
+
+================================================================================
+## 1. Anchor UI panel to GameManager.PlayerObject (no eye-height offset)
+- What: VRUIOverlay anchored the panel to PlayerObject.transform directly.
+- Why failed: In char-creation the PlayerObject sits at FEET level, so the new-game UI
+  appeared at the player's feet ("a little low, almost right at player feet").
+- Reverted: commit 461817f (reverted by d24ac63).
+- Lesson: PlayerObject.position is feet-level; must add eye-height offset. Also PlayerObject
+  is a DIFFERENT object in char-creation vs gameplay (StartNewCharacter creates a fresh one).
+
+## 2. Anchor UI panel to HMD head pose (InputDevices HeadMounted devicePosition)
+- What: VRUIOverlay read the HMD pose via legacy InputDevices and anchored the panel to it.
+- Why failed: InputDevices HMD devicePosition reads in XR TRACKING SPACE (relative to the
+  XROrigin), not world space. In menu/char-creation tracking origin == world origin, so it
+  worked there. In gameplay the XROrigin is stuck at world origin, so the HMD pose reads
+  ~origin — 40m from the player. Panel invisible in gameplay.
+- Reverted: commit 0017d2a (kept as the menu-working baseline, then superseded).
+- Lesson: HMD devicePosition is tracking-space, NOT world-space. Only valid when the rig is
+  at world origin (menu/char-creation).
+
+## 3. Scene-gate the anchor: PlayerObject in gameplay, HMD in menu (HasGameCamera gate)
+- What: Used presence of the PlayerMouseLook game camera (HasGameCamera) to pick PlayerObject
+  (gameplay) vs HMD pose (menu).
+- Why failed: HasGameCamera()/PlayerMouseLook is TRUE during char-creation too (a game camera
+  exists there), so it wrongly used PlayerObject in char-creation -> panel at feet.
+- Reverted: commit 27a797b (reverted by 5a966eb).
+- Lesson: camera presence is NOT a reliable gameplay-vs-charcreation discriminator. Use
+  StateManager.GameInProgress instead (false in menu AND char-creation).
+
+## 4. Make rig follow player position-only every LateUpdate (commit 1c642a7)
+- What: VRRigBootstrap.LateUpdate set xrOrigin.position = player.position every frame
+  (world-space follow, NO rotation copy). VRUIOverlay anchored to camera world position.
+- Why failed: BROKE THE STICKS. It deleted the SetParent block that coupled the rig's rotation
+  to the player. That coupling is what made right-stick-X yaw turn the view (rig, as a child
+  of the player, rotated with it). Position-only follow left the rig at identity rotation, so
+  yaw rotated the player but NOT the view -> right-stick X dead, left stick wrong axis.
+  Right-stick Y survived (pitch rotates VRHeadPitch, a node under the rig, not the player).
+- Reverted: commit 49c92d4.
+- Lesson: if you drive the rig from the player, you MUST copy the player's YAW too (not just
+  position), or you break the yaw-coupling the sticks depend on.
+
+## 5. Anchor to PlayerObject + 1.5m eye height, gated by StateManager.GameInProgress (commit 5e9e5e0)
+- What: VRUIOverlay anchored to PlayerObject + 1.5m in gameplay (GameInProgress gate), HMD
+  pose in menu. Head-gaze ray also pointed at player facing in gameplay.
+- Why failed: gameplay FROZE at new-character (black screen). BUT the log showed this was a
+  PRE-EXISTING DFU char-creation bug, NOT this change: "[StartGameBehaviour] NewCharacter
+  failed: System.IndexOutOfRangeException" at DungeonTextureTables.RandomTextureTableClassic
+  line 37 (climateIndices[climate - Ocean]), player never spawned. The change only touched
+  VRUIOverlay anchor logic and could not cause it.
+- Reverted: commit 12fdf57 (because the freeze masked whether the fix worked).
+- Lesson: the frozen-black-screen was a SEPARATE pre-existing bug (now fixed by da6703c
+  climate clamp). Don't conflate char-creation flakiness with panel-anchor changes.
+
+## 6. Rig-follow with position + yaw (commit 3e2e6a8) — CURRENT, still not fixing panel
+- What: VRRigBootstrap.LateUpdate drives rig position AND yaw from the live player every
+  frame (unparented), preserving the yaw-coupling. VRUIOverlay anchors to camera world
+  transform in gameplay (GameInProgress gate).
+- Status: controls work, gameplay loads, rig follows player. BUT the UI panel is STILL
+  invisible in gameplay. This is the current state (stable-gameplay-loads / da6703c).
+- Lesson: fixing the rig so the camera is at the player did NOT make the panel visible.
+  The panel invisibility must have ANOTHER cause (render target not updating in gameplay?
+  panel quad not rendering? DaggerfallUI.CustomRenderTarget not drawing the HUD in-game?
+  the panel being hidden by the IsPlayingGame gate?).
+
+================================================================================
+## OTHER FIXES THAT WORKED (for reference, do not regress)
+- Spell book stuck menu: new Texture2D(0,0,...) throws in Unity 6 (was valid in 2019.4).
+  Fixed all 3 sites (SpellIconCollection, SaveLoadManager, DaggerfallBookReaderWindow) to
+  Texture2D(2,2) — LoadImage resizes anyway. Commit 1308ad2.
+- Frozen black screen on new character: climate index out of range in
+  DungeonTextureTables.RandomTextureTableClassic. Clamped both climate indices. Commit da6703c.
+- Menu button as back: vrEscapeQueuedFrame int counter (survives LateUpdate) wired into
+  GetBackButton*. Commit 109dfa8.
+- Stick calibration: yaw rotates PlayerObject (not rig), pitch on dedicated VRHeadPitch node.
+  Commit b073966. Left-stick 180 negate removed when yaw moved to Player. Commit 8a19cf4.
+- Legacy joystick double-read: EnableController=false. Commit c14dae0.
+- Jump on X button (held, like spacebar). Commit 0066922.
