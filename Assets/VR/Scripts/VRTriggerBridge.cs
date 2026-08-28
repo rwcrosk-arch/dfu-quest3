@@ -13,31 +13,9 @@ using DaggerfallWorkshop.Game;
 
 namespace DFUQuest3
 {
-    // Run AFTER InputManager.Update (default order 0) so the actions we AddAction() are
-    // still in currentActions when DFU's gameplay code reads them. InputManager.Update
-    // clears currentActions at the START of its update; if we run before it, our actions
-    // get moved to previousActions and cleared, so ActionStarted consumers (ReadyWeapon,
-    // SwingWeapon, Jump) never see them. A positive order runs after the default 0.
-    [DefaultExecutionOrder(100)]
     public class VRTriggerBridge : MonoBehaviour
     {
         bool lastTrigger;
-        // Manual run (sprint) toggle — right stick click flips this; while on, Run is held.
-        bool runToggled;
-        // Cycle state for the left-grip menu cycler: opens a different DFU window per
-        // press (CharacterSheet -> Inventory -> QuestJournal -> AutoMap -> TravelMap -> Rest).
-        int menuCycleIndex = -1;
-        // Cycle through the DFU windows. B opens the magic menu (spell book) directly, so
-        // the cycler covers the rest including Inventory.
-        static readonly InputManager.Actions[] MenuCycle =
-        {
-            InputManager.Actions.CharacterSheet,
-            InputManager.Actions.Inventory,
-            InputManager.Actions.LogBook,  // opens the quest journal
-            InputManager.Actions.AutoMap,
-            InputManager.Actions.TravelMap,
-            InputManager.Actions.Rest,
-        };
 
         // Self-wire at runtime so VRSceneSetup.cs (and VRUIOverlay.cs) stay untouched.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -230,114 +208,11 @@ namespace DFUQuest3
                     }
                 }
 
-                // --- Buttons (PCVR DFU template) ---
-                // Inject DFU actions via InputManager.AddAction so all of DFU's gameplay
-                // logic (cast, inventory, jump, crouch, run, recast, autorun, pause) works
-                // unmodified. Edge-triggered buttons fire once on the rising edge.
-                var im3 = InputManager.Instance;
-                if (im3 != null)
-                {
-                    // Right primary (A) -> Sheath/unsheathe weapon (ReadyWeapon toggles).
-                    if (Pressed(VRActionBinder.AButtonAction))
-                    {
-                        im3.AddAction(InputManager.Actions.ReadyWeapon);
-                        Debug.Log("[DFUQuest3] A -> ReadyWeapon (sheath/unsheathe)");
-                    }
-                    // Right secondary (B) -> Magic menu (spell book). Inventory is reached
-                    // via the menu cycler.
-                    if (Pressed(VRActionBinder.BButtonAction))
-                    {
-                        im3.AddAction(InputManager.Actions.CastSpell);
-                        Debug.Log("[DFUQuest3] B -> Magic menu (spell book)");
-                    }
-                    // Left secondary (Y) -> cycle menus (press = next window). Cycles
-                    // CharacterSheet -> Inventory -> LogBook -> AutoMap -> TravelMap -> Rest.
-                    if (Pressed(VRActionBinder.YButtonAction))
-                    {
-                        menuCycleIndex = (menuCycleIndex + 1) % MenuCycle.Length;
-                        InputManager.Actions act = MenuCycle[menuCycleIndex];
-                        im3.AddAction(act);
-                        Debug.Log("[DFUQuest3] Y -> menu cycle: " + act);
-                    }
-                    // Left grip -> left-hand weapon/shield use (SwingWeapon).
-                    if (Pressed(VRActionBinder.GripLeftAction))
-                    {
-                        im3.AddAction(InputManager.Actions.SwingWeapon);
-                        Debug.Log("[DFUQuest3] LeftGrip -> SwingWeapon (left hand)");
-                    }
-                    // X button (left primary) -> Jump (HELD, like the spacebar). DFU's
-                    // AcrobatMotor checks HasAction(Jump) continuously + requires
-                    // GroundedTime >= 0.1f, so hold X to jump.
-                    if (Held(VRActionBinder.XButtonAction))
-                    {
-                        im3.AddAction(InputManager.Actions.Jump);
-                    }
-                    // Left trigger -> Recast spell (actually casts the last spell, NOT the
-                    // magic menu — CastSpell opens the spell book, which is on B).
-                    if (Pressed(VRActionBinder.TriggerLeftAction))
-                    {
-                        im3.AddAction(InputManager.Actions.RecastSpell);
-                        Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (cast)");
-                    }
-                    // Left thumbstick click -> Crouch.
-                    if (Pressed(VRActionBinder.StickClickLeftAction))
-                    {
-                        im3.AddAction(InputManager.Actions.Crouch);
-                        Debug.Log("[DFUQuest3] LeftStickClick -> Crouch");
-                    }
-                    // Right thumbstick click -> Toggle run (sprint). Manual toggle: flip a
-                    // bool and hold Run while on. (AutoRun is continuous-forward autorun,
-                    // not a sprint toggle — the user wants a run toggle.)
-                    if (Pressed(VRActionBinder.StickClickRightAction))
-                    {
-                        runToggled = !runToggled;
-                        Debug.Log("[DFUQuest3] RightStickClick -> run " + (runToggled ? "ON" : "OFF"));
-                    }
-                    if (runToggled)
-                    {
-                        im3.AddAction(InputManager.Actions.Run);
-                    }
-                    // Right grip -> right-hand weapon/shield use (SwingWeapon).
-                    if (Pressed(VRActionBinder.GripRightAction))
-                    {
-                        im3.AddAction(InputManager.Actions.SwingWeapon);
-                        Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon (right hand)");
-                    }
-                    // Menu button -> CONTEXT-AWARE. If a window is open (WindowCount>0,
-                    // i.e. not just the HUD), it acts as BACK/EXIT (close the top window).
-                    // If no window is open, it opens the pause options dialog (which has
-                    // Save/Load/Settings/Controls). This fixes two problems: (1) save/load/
-                    // settings were unreachable because the menu button only fired Escape
-                    // which opened the pause menu but the cycling windows never exposed
-                    // them; (2) back/exit didn't work on cycling windows because Escape
-                    // pushed the pause options ON TOP instead of closing the cycling window.
-                    bool windowOpen = false;
-                    try
-                    {
-                        var uiMgr = DaggerfallWorkshop.Game.DaggerfallUI.UIManager;
-                        if (uiMgr != null && uiMgr.WindowCount > 0)
-                            windowOpen = true;
-                    }
-                    catch { }
-                    if (Pressed(VRActionBinder.MenuButtonAction))
-                    {
-                        if (windowOpen)
-                        {
-                            // Close the top window (back/exit). The vrEscapeQueuedFrame
-                            // counter feeds GetBackButtonUp() so the window closes.
-                            im3.vrEscapeQueuedFrame = Time.frameCount + 1;
-                            Debug.Log("[DFUQuest3] Menu -> back (close window)");
-                        }
-                        else
-                        {
-                            // No window open: open the pause options dialog (Save/Load/
-                            // Settings/Controls live here).
-                            im3.AddAction(InputManager.Actions.Escape);
-                            im3.vrEscapeQueuedFrame = Time.frameCount + 1;
-                            Debug.Log("[DFUQuest3] Menu -> open pause options");
-                        }
-                    }
-                }
+                // --- Button ACTION injection lives in VRActionInjector.cs (order 100,
+                // after InputManager.Update clears currentActions) so ActionStarted/HasAction
+                // consumers (ReadyWeapon, SwingWeapon, Jump, Run) actually see them. This
+                // component stays at default order so the vrClickQueued flag is set BEFORE
+                // the UI reads it (menu clicks keep working).
             }
         }
 
