@@ -62,10 +62,34 @@ namespace DFUQuest3
         {
             var ui = DaggerfallUI.Instance;
             var top = ui != null ? DaggerfallUI.UIManager.TopWindow : null;
-            bool focused = top != null && top.FocusControl is TextBox;
-            if (top != null && top.FocusControl != null && !focused)
-                Debug.Log("[DFUQuest3] VRKeyboard: top=" + top.GetType().Name + " focus=" + top.FocusControl.GetType().Name);
-            return focused;
+            if (top == null) return false;
+
+            // DFU char-name window adds the TextBox to ParentPanel.Components but does
+            // NOT set it as FocusControl, so walking the component tree is the reliable
+            // check. Also accept a null-focus TextBox (char-name field has UseFocus=false).
+            var focus = top.FocusControl;
+            if (focus is TextBox)
+                return true;
+
+            // Walk the panel's components for any TextBox.
+            var panel = top.ParentPanel;
+            if (panel != null)
+            {
+                for (int i = 0; i < panel.Components.Count; i++)
+                {
+                    var c = panel.Components[i];
+                    if (c is TextBox)
+                        return true;
+                    // Also check nested panels (e.g. the save-name window).
+                    if (c is Panel p)
+                    {
+                        for (int j = 0; j < p.Components.Count; j++)
+                            if (p.Components[j] is TextBox)
+                                return true;
+                    }
+                }
+            }
+            return false;
         }
 
         void Build()
