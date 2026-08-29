@@ -32,6 +32,21 @@ namespace DFUQuest3
 
         void Update()
         {
+            // Heartbeat: confirm the component runs and log the top window/focus state
+            // periodically (unconditional, so we see it even when top/FocusControl is null).
+            hb -= Time.unscaledDeltaTime;
+            if (hb <= 0f)
+            {
+                hb = 2f;
+                var ui = DaggerfallUI.Instance;
+                var top = ui != null ? DaggerfallUI.UIManager.TopWindow : null;
+                var fc = top != null ? top.FocusControl : null;
+                Debug.Log("[DFUQuest3] VRKeyboard heartbeat: ui=" + (ui != null) +
+                    " top=" + (top != null ? top.GetType().Name : "null") +
+                    " focus=" + (fc != null ? fc.GetType().Name : "null") +
+                    " isTextBox=" + (fc is TextBox));
+            }
+
             bool wantShown = TextBoxFocused();
             if (wantShown && board == null) { Build(); Debug.Log("[DFUQuest3] VRKeyboard: built (TextBox focused)"); }
             if (!wantShown && board != null) { Destroy(board); board = null; Debug.Log("[DFUQuest3] VRKeyboard: dismissed"); return; }
@@ -40,6 +55,8 @@ namespace DFUQuest3
             AnchorInFrontOfHead();
             PollKeys();
         }
+
+        float hb = 2f;
 
         static bool TextBoxFocused()
         {
