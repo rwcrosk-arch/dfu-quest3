@@ -46,11 +46,32 @@ namespace DFUQuest3
             var im = InputManager.Instance;
             if (im == null) return;
 
-            // Right primary (A) -> Sheath/unsheathe weapon (ReadyWeapon toggles).
+            // Right primary (A) -> Sheath/unsheathe weapon. CALL THE MANAGER DIRECTLY, not
+            // via AddAction(ReadyWeapon): WeaponManager checks ActionStarted(ReadyWeapon) at
+            // default order (0), BEFORE this injector (order 100), so an injected action is
+            // never seen as "started" on the same frame. Direct call bypasses that timing.
+            // BUT: we must check that the WeaponManager exists AND isn't mid-attack (attack
+            // overrides sheath state). The direct call is correct; timing is the fix.
             if (Pressed(VRActionBinder.AButtonAction))
             {
-                im.AddAction(InputManager.Actions.ReadyWeapon);
-                Debug.Log("[DFUQuest3] A -> ReadyWeapon (sheath/unsheathe)");
+                var wm = DaggerfallWorkshop.Game.GameManager.Instance?.WeaponManager;
+                if (wm != null)
+                {
+                    // ToggleSheath is safe to call even if attacking; WeaponManager.Update
+                    // will reconcile the state on its next frame. The key fix is that we
+                    // call it at order 100, AFTER InputManager has processed, so the
+                    // Sheathed flag change persists into the next frame's Update.
+                    wm.ToggleSheath();
+                    var sw = wm.ScreenWeapon;
+                    Debug.Log("[DFUQuest3] A -> ToggleSheath (direct, sheathed=" + wm.Sheathed +
+                        ", weaponType=" + (sw != null ? sw.WeaponType.ToString() : "null") +
+                        ", showWeapon=" + (sw != null ? sw.ShowWeapon : false) + ")");
+                }
+                else
+                {
+                    im.AddAction(InputManager.Actions.ReadyWeapon);
+                    Debug.Log("[DFUQuest3] A -> ReadyWeapon (fallback, no WeaponManager)");
+                }
             }
             // Right secondary (B) -> Magic menu (spell book). Inventory is in the cycler.
             if (Pressed(VRActionBinder.BButtonAction))
@@ -78,11 +99,24 @@ namespace DFUQuest3
             {
                 im.AddAction(InputManager.Actions.Jump);
             }
-            // Left trigger -> Recast spell (actual cast). CastSpell opens the spell book (on B).
+            // Left trigger -> Recast/cast the last spell. CALL DIRECTLY: EntityEffectManager
+            // checks ActionStarted(RecastSpell) at order 0 (before this injector), so an
+            // injected action is never seen as "started". Replicate its recast logic
+            // (line 257): need a last spell, not playing a cast anim, and a spellbook.
             if (Pressed(VRActionBinder.TriggerLeftAction))
             {
-                im.AddAction(InputManager.Actions.RecastSpell);
-                Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (cast)");
+                var eem = DaggerfallWorkshop.Game.GameManager.Instance?.PlayerEffectManager;
+                if (eem != null && eem.LastSpell != null &&
+                    !DaggerfallWorkshop.Game.GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
+                {
+                    eem.SetReadySpell(eem.LastSpell);
+                    Debug.Log("[DFUQuest3] LeftTrigger -> SetReadySpell (direct cast)");
+                }
+                else
+                {
+                    im.AddAction(InputManager.Actions.RecastSpell);
+                    Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (fallback)");
+                }
             }
             // Left thumbstick click -> Crouch.
             if (Pressed(VRActionBinder.StickClickLeftAction))
@@ -126,9 +160,14 @@ namespace DFUQuest3
                 }
                 else
                 {
-                    im.AddAction(InputManager.Actions.Escape);
-                    im.vrEscapeQueuedFrame = Time.frameCount + 1;
-                    Debug.Log("[DFUQuest3] Menu -> open pause options");
+                    // Open the pause options dialog (Save/Load/Settings/Controls) DIRECTLY.
+                    // GameManager opens it via ActionComplete(Escape), which requires Escape
+                    // in previousActions but NOT currentActions — a 2-frame press/release
+                    // our injector can't satisfy with a single AddAction. Posting the message
+                    // directly opens the window reliably.
+                    DaggerfallWorkshop.Game.DaggerfallUI.PostMessage(
+                        DaggerfallWorkshop.Game.DaggerfallUIMessages.dfuiOpenPauseOptionsDialog);
+                    Debug.Log("[DFUQuest3] Menu -> PostMessage open pause options");
                 }
             }
         }
