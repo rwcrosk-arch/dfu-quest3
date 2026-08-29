@@ -107,6 +107,19 @@ namespace DaggerfallWorkshop.Game
         FadeBehaviour fadeBehaviour = null;
         bool instantiatePersistentWindowInstances = true;
 
+        // === VR text input queue (DFUQuest3) ===
+        // The VR keyboard enqueues chars/keys from any execution order; Update() drains
+        // one item per frame before TopWindow.Update() so TextBox sees it exactly like an
+        // OnGUI-delivered keypress. Desktop path untouched (queues empty on desktop).
+        readonly System.Collections.Generic.Queue<char> vrCharQueue = new System.Collections.Generic.Queue<char>();
+        readonly System.Collections.Generic.Queue<KeyCode> vrKeyQueue = new System.Collections.Generic.Queue<KeyCode>();
+
+        /// <summary>Enqueue a typed character (VR keyboard). Consumed next Update.</summary>
+        public void QueueVRCharacter(char c) { if (c != 0) vrCharQueue.Enqueue(c); }
+
+        /// <summary>Enqueue a control key (Backspace, Return, Delete, Left, Right, Home, End, Escape). No hotkey processing.</summary>
+        public void QueueVRKey(KeyCode k) { if (k != KeyCode.None) vrKeyQueue.Enqueue(k); }
+
         bool hudSetup = false;
         DaggerfallHUD dfHUD;
         DaggerfallPauseOptionsWindow dfPauseOptionsWindow;
@@ -399,6 +412,15 @@ namespace DaggerfallWorkshop.Game
 
         void Update()
         {
+            // Drain one queued VR input item per frame. Set before TopWindow.Update()
+            // so TextBox reads it this frame; the end-of-Update clear disposes of it.
+            // Deliberately NOT setting processHotkeys — VR-typed keys must not trigger
+            // gameplay hotkeys while a text window is focused.
+            if (vrCharQueue.Count > 0)
+                lastCharacterTyped = vrCharQueue.Dequeue();
+            if (vrKeyQueue.Count > 0)
+                lastKeyCode = vrKeyQueue.Dequeue();
+
             // HUD is always first window on stack when ready
             if (dfUnity.IsPathValidated && !hudSetup)
             {

@@ -90,6 +90,12 @@ namespace DFUQuest3
             DontDestroyOnLoad(weaponRendererGO);
             weaponRendererGO.AddComponent<VRWeaponRenderer>().poseBridge = mcpBridge;
 
+            // VR keyboard — world-space text entry for DFU TextBoxes (save/player name).
+            // Auto-shows when a TextBox has focus; keys inject via DaggerfallUI's VR queue.
+            var keyboardGO = new GameObject("DFU VR Keyboard");
+            DontDestroyOnLoad(keyboardGO);
+            keyboardGO.AddComponent<VRKeyboard>().poseBridge = mcpBridge;
+
             DontDestroyOnLoad(originGO);
 
             Debug.Log("[DFUQuest3] XR rig instantiated at boot (DFU camera augment).");
