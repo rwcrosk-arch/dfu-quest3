@@ -109,19 +109,7 @@ namespace DaggerfallWorkshop.Game
 
         public Vector2 Position { get; set; } = Vector2.zero;   //Moves the sprite in screen distance
         public Vector2 Scale { get; set; } = Vector2.one;
-        public Vector2 Offset { get; set; } = Vector2.zero;     //Moves the sprite relative to its own dimensions (Offset.x moves sprite.width * Offset.x). Applied after Scale.
-
-        // VR: exposes the texture + anim rect currently drawn by OnGUI so a world-space
-        // renderer (DFUQuest3.VRWeaponRenderer) can draw it in 3D. OnGUI continues to run
-        // as the animation-state machine (atlas load, frame timing) — only the final draw
-        // is suppressed via SuppressOnGUIDraw.
-        public Texture2D CurrentWeaponTexture
-        {
-            get { return (weaponAtlas != null) ? (curCustomTexture ? curCustomTexture : weaponAtlas.AtlasTexture) : (curCustomTexture ? curCustomTexture : null); }
-        }
-        public Rect CurrentAnimRect { get { return curAnimRect; } }
-        // VR: when true, OnGUI skips drawing the weapon (it is rendered in 3D instead).
-        public static bool SuppressOnGUIDraw = false;
+        public Vector2 Offset { get; set; } = Vector2.zero;     //Moves the sprite relative to its own dimensions ("Offset.x = 0.5f" will move "sprite.width * 0.5f"). Applied after Scale.
 
         #endregion
 
@@ -187,7 +175,7 @@ namespace DaggerfallWorkshop.Game
             if (updateWeapon)
                 UpdateWeapon();
 
-            if (Event.current.type.Equals(EventType.Repaint) && ShowWeapon && !SuppressOnGUIDraw)
+            if (Event.current.type.Equals(EventType.Repaint) && ShowWeapon)
             {
                 // Draw weapon texture behind other HUD elements
                 Texture2D tex = curCustomTexture ? curCustomTexture : weaponAtlas.AtlasTexture;
