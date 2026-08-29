@@ -26,6 +26,7 @@ namespace DFUQuest3
         GameObject quad;
         Material mat;
         bool nreLogged;
+        bool diagLogged;
 
         void BuildQuad()
         {
@@ -92,7 +93,26 @@ namespace DFUQuest3
                            && w.CurrentWeaponTexture != null
                            && !GameManager.IsGamePaused;
             quad.SetActive(visible);
-            if (!visible) return;
+            if (!visible)
+            {
+                if (!diagLogged)
+                {
+                    diagLogged = true;
+                    Debug.Log("[DFUQuest3] VRWeapon quad INVISIBLE: w=" + (w != null) +
+                        " wm=" + (wm != null) + " sheathed=" + (wm != null ? wm.Sheathed : -1) +
+                        " showWeapon=" + (w != null ? w.ShowWeapon : -1) +
+                        " type=" + (w != null ? w.WeaponType.ToString() : "null") +
+                        " tex=" + (w != null && w.CurrentWeaponTexture != null ? w.CurrentWeaponTexture.width + "x" + w.CurrentWeaponTexture.height : "null") +
+                        " paused=" + GameManager.IsGamePaused);
+                }
+                return;
+            }
+            if (!diagLogged)
+            {
+                diagLogged = true;
+                Debug.Log("[DFUQuest3] VRWeapon quad VISIBLE: tex=" + w.CurrentWeaponTexture.width + "x" + w.CurrentWeaponTexture.height +
+                    " animRect=" + w.CurrentAnimRect + " mat=" + (mat != null ? mat.shader.name : "null"));
+            }
 
             if (mat.mainTexture != w.CurrentWeaponTexture) mat.mainTexture = w.CurrentWeaponTexture;
             Rect r = w.CurrentAnimRect;
