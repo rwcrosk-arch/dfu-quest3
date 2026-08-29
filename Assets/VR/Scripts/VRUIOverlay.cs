@@ -156,7 +156,18 @@ namespace DFUQuest3
             // Segment panel material by mode: opaque backdrop in menu/char-creation (so the
             // new-game UI stays fully visible), chroma-key transparent black in gameplay
             // (so the panel doesn't block the view). Swap only when the mode changes.
-            SetPanelMaterialForMode(playerT != null);
+            // Context-aware: key the panel (remove black) only when in gameplay AND no
+            // window/menu is open (HUD only). When a menu/window is open, keep it opaque
+            // so dark menu backgrounds render fully.
+            bool windowOpen = false;
+            try
+            {
+                var uiMgr = DaggerfallWorkshop.Game.DaggerfallUI.UIManager;
+                if (uiMgr != null && uiMgr.WindowCount > 0)
+                    windowOpen = true;
+            }
+            catch { }
+            SetPanelMaterialForMode(playerT != null && !windowOpen);
 
             Vector3 anchorOrigin;
             Vector3 anchorForward;
