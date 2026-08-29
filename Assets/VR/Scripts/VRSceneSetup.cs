@@ -81,6 +81,12 @@ namespace DFUQuest3
             overlay.poseBridge = mcpBridge;
             overlayGO.transform.SetParent(originGO.transform, false);
 
+            // VR weapon renderer — draws the DFU first-person weapon as a world-space
+            // quad anchored to the controller, instead of FPSWeapon.OnGUI (invisible in VR).
+            var weaponGO = new GameObject("DFUQuest3 VRWeaponRenderer");
+            weaponGO.AddComponent<VRWeaponRenderer>().poseBridge = mcpBridge;
+            weaponGO.transform.SetParent(originGO.transform, false);
+
             DontDestroyOnLoad(originGO);
 
             Debug.Log("[DFUQuest3] XR rig instantiated at boot (DFU camera augment).");
