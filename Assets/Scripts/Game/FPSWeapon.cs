@@ -177,24 +177,9 @@ namespace DaggerfallWorkshop.Game
 
             if (Event.current.type.Equals(EventType.Repaint) && ShowWeapon)
             {
-                // Draw weapon texture behind other HUD elements. The weapon is a SEPARATE
-                // OnGUI (GUI.depth=1) that runs AFTER DaggerfallUI.OnGUI has un-bound the
-                // custom render target — so without re-binding here it draws to the screen
-                // and never appears in the VR panel texture. Re-bind the target around the
-                // draw so the unsheathed weapon renders into the panel.
-                var dfUI = DaggerfallUI.Instance;
-                RenderTexture oldRt = null;
-                if (dfUI != null && dfUI.CustomRenderTarget != null)
-                {
-                    oldRt = RenderTexture.active;
-                    RenderTexture.active = dfUI.CustomRenderTarget.TargetTexture;
-                }
-
+                // Draw weapon texture behind other HUD elements
                 Texture2D tex = curCustomTexture ? curCustomTexture : weaponAtlas.AtlasTexture;
                 DaggerfallUI.DrawTextureWithTexCoords(GetWeaponRect(), tex, curAnimRect, true, Tint);
-
-                if (oldRt != null)
-                    RenderTexture.active = oldRt;
             }
         }
 
