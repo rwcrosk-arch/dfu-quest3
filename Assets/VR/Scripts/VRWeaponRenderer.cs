@@ -107,7 +107,11 @@ namespace DFUQuest3
                     " tex=" + (w != null && w.CurrentWeaponTexture != null ? w.CurrentWeaponTexture.width + "x" + w.CurrentWeaponTexture.height : "null") +
                     " paused=" + GameManager.IsGamePaused +
                     " mat=" + (mat != null ? mat.shader.name : "null") +
-                    " quadActive=" + (quad != null ? quad.activeSelf : false));
+                    " quadActive=" + (quad != null ? quad.activeSelf : false) +
+                    " quadPos=" + (quad != null ? quad.transform.position.ToString() : "null") +
+                    " quadScale=" + (quad != null ? quad.transform.localScale.ToString() : "null") +
+                    " camPos=" + (gm.MainCamera != null ? gm.MainCamera.transform.position.ToString() : "null") +
+                    " animRect=" + (w != null ? w.CurrentAnimRect.ToString() : "null"));
             }
             if (!visible) return;
 
