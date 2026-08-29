@@ -35,15 +35,19 @@ namespace DFUQuest3
             quad.transform.localScale = new Vector3(quadWidth, quadHeight, 1f);
             var col = quad.GetComponent<Collider>();
             if (col) Destroy(col);
-            // Never pass a possibly-null shader to new Material() — it throws
-            // ArgumentNullException (param "shader") when Shader.Find returns null.
-            // On device the CGPROGRAM chroma-key shader may fail to compile (built-in
-            // pipeline path on this OpenXR/Vulkan build) even though it's in
-            // AlwaysIncludedShaders, so find first, then construct.
+            // Load the custom chroma-key shader. The shader is in AlwaysIncludedShaders
+            // with correct fileID (4800000) so it compiles into the build. If somehow
+            // still unavailable, log the error and build a debug-magenta material so
+            // we KNOW the quad renders (can't mistake black-on-black for invisible).
             Shader s = Shader.Find("DFUQuest3/VRUIChromaKey");
-            if (s == null || !s.isSupported) { Debug.LogWarning("[DFUQuest3] VRUIChromaKey shader unavailable — using Unlit/Transparent Cutout fallback"); s = Shader.Find("Unlit/Transparent Cutout"); }
-            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Texture");
-            if (s == null || !s.isSupported) { BuildFallbackColorMaterial(); return; }
+            if (s == null || !s.isSupported)
+            {
+                Debug.LogError("[DFUQuest3] VRUIChromaKey shader NOT AVAILABLE — " +
+                    "check that Assets/VR/Shaders/VRUIChromaKey.shader is in AlwaysIncludedShaders " +
+                    "with fileID 4800000. Building debug-magenta fallback.");
+                BuildDebugMagentaMaterial();
+                return;
+            }
             mat = new Material(s);
             quad.GetComponent<Renderer>().sharedMaterial = mat;
             quad.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -52,13 +56,20 @@ namespace DFUQuest3
             DontDestroyOnLoad(quad);
         }
 
-        // Last-resort material when even built-in unlit shaders are stripped:
-        // a Sprites/Default material so at least SOMETHING renders.
-        void BuildFallbackColorMaterial()
+        // Debug fallback: bright magenta so we can SEE the quad even when the shader fails.
+        // This eliminates the "invisible because black-on-black" diagnostic ambiguity.
+        void BuildDebugMagentaMaterial()
         {
-            var spriteShader = Shader.Find("Sprites/Default");
-            mat = spriteShader != null ? new Material(spriteShader)
-                                       : new Material(Shader.Find("Hidden/Internal-Colored"));
+            var unlit = Shader.Find("Unlit/Color");
+            if (unlit != null)
+            {
+                mat = new Material(unlit);
+                mat.color = Color.magenta;
+            }
+            else
+            {
+                mat = new Material(Shader.Find("Hidden/Internal-Colored"));
+            }
             quad.GetComponent<Renderer>().sharedMaterial = mat;
         }
 

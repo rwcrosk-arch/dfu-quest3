@@ -1,6 +1,12 @@
-// DFU Quest3 VR — chroma-key shader for the UI panel.
-// Renders the DFU UI render target but makes near-black pixels transparent, so the
-// opaque black panel background disappears and only the HUD/menu elements show.
+// DFU Quest3 VR — chroma-key shader for the weapon quad and UI panel.
+// Renders the source texture but makes near-black pixels transparent (alpha=0).
+// This keys out the black background so only the weapon/UI elements show.
+//
+// IMPORTANT: This shader is designed to compile on Unity 6 built-in render pipeline
+// targeting Android/Vulkan/OpenXR. It avoids CGPROGRAM legacy syntax that may fail
+// on modern Vulkan drivers and uses the most portable shader model 2.0 features.
+//
+// Usage: Material mainTexture = weapon atlas; adjust _Threshold for key sensitivity.
 Shader "DFUQuest3/VRUIChromaKey"
 {
     Properties
@@ -11,21 +17,34 @@ Shader "DFUQuest3/VRUIChromaKey"
     }
     SubShader
     {
-        Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" }
+        Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off
+        LOD 100
+
         Pass
         {
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma target 2.0
             #include "UnityCG.cginc"
 
-            struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; };
-            struct v2f { float2 uv : TEXCOORD0; float4 vertex : SV_POSITION; };
+            struct appdata
+            {
+                float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct v2f
+            {
+                float2 uv : TEXCOORD0;
+                float4 vertex : SV_POSITION;
+            };
 
             sampler2D _MainTex;
+            float4 _MainTex_ST;
             float4 _KeyColor;
             float _Threshold;
 
@@ -33,21 +52,26 @@ Shader "DFUQuest3/VRUIChromaKey"
             {
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.uv = v.uv;
+                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return o;
             }
 
-            fixed4 frag (v2f i) : SV_Target
+            half4 frag (v2f i) : SV_Target
             {
-                fixed4 col = tex2D(_MainTex, i.uv);
-                // Distance from the key color (black). Pixels close to black become
-                // transparent; everything else keeps its color.
-                float dist = distance(col.rgb, _KeyColor.rgb);
-                float alpha = smoothstep(_Threshold, _Threshold + 0.15, dist);
-                col.a = alpha;
-                return col;
+                half4 col = tex2D(_MainTex, i.uv);
+
+                // Chroma-key: distance from key color (black). Pixels close to
+                // black become fully transparent; everything else keeps color.
+                half dist = distance(col.rgb, _KeyColor.rgb);
+                half alpha = smoothstep(_Threshold, _Threshold + 0.15h, dist);
+
+                // Return color with keyed alpha. Premultiply not needed since
+                // we use standard SrcAlpha/OneMinusSrcAlpha blending.
+                return half4(col.rgb, alpha);
             }
-            ENDCG
+            ENDHLSL
         }
     }
+    // Fallback: if HLSL fails on this platform, use a simple alpha-test cutout
+    Fallback "Unlit/Transparent Cutout"
 }

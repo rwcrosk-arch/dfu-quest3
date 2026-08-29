@@ -265,14 +265,18 @@ namespace DFUQuest3
 
             if (isGameplay)
             {
-                // Never pass a null shader to new Material() (ArgumentNullException).
-                // If the chroma-key shader isn't compiled in this build, fall back
-                // to opaque Unlit/Texture once instead of throwing every Update.
+                // Load custom chroma-key shader. It's in AlwaysIncludedShaders with
+                // correct fileID (4800000), so it compiles into the build. If the
+                // shader is somehow still missing, we log an error and keep the
+                // panel opaque rather than crash. The black background remains visible
+                // (not ideal) but the UI remains usable.
                 Shader s = Shader.Find("DFUQuest3/VRUIChromaKey");
                 if (s == null || !s.isSupported)
                 {
-                    Debug.LogWarning("[DFUQuest3] VRUIChromaKey shader unavailable — panel stays opaque (Unlit/Texture).");
+                    Debug.LogError("[DFUQuest3] VRUIChromaKey shader NOT AVAILABLE in SetPanelMaterialForMode — " +
+                        "panel stays opaque (Unlit/Texture). Check AlwaysIncludedShaders fileID.");
                     s = Shader.Find("Unlit/Texture");
+                    if (s == null) return; // last resort: don't change material
                 }
                 var mat = new Material(s);
                 mat.mainTexture = tex;
