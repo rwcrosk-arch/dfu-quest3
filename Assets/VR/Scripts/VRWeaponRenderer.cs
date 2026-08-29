@@ -25,6 +25,7 @@ namespace DFUQuest3
 
         GameObject quad;
         Material mat;
+        bool nreLogged;
 
         void BuildQuad()
         {
@@ -44,6 +45,22 @@ namespace DFUQuest3
         }
 
         void Update()
+        {
+            try
+            {
+                UpdateWeaponQuad();
+            }
+            catch (System.Exception e)
+            {
+                if (!nreLogged)
+                {
+                    nreLogged = true;
+                    Debug.LogError("[DFUQuest3] VRWeaponRenderer.Update exception: " + e);
+                }
+            }
+        }
+
+        void UpdateWeaponQuad()
         {
             if (quad == null) BuildQuad();
             var gm = GameManager.Instance;
