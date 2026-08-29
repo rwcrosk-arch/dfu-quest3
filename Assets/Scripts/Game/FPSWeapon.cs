@@ -109,7 +109,17 @@ namespace DaggerfallWorkshop.Game
 
         public Vector2 Position { get; set; } = Vector2.zero;   //Moves the sprite in screen distance
         public Vector2 Scale { get; set; } = Vector2.one;
-        public Vector2 Offset { get; set; } = Vector2.zero;     //Moves the sprite relative to its own dimensions ("Offset.x = 0.5f" will move "sprite.width * 0.5f"). Applied after Scale.
+        public Vector2 Offset { get; set; } = Vector2.zero;     //Moves the sprite relative to its own dimensions (Offset.x moves sprite.width * Offset.x). Applied after Scale.
+
+        // VR: exposes the texture + anim rect currently drawn by OnGUI so a world-space
+        // renderer (DFUQuest3.VRWeaponRenderer) can draw it in 3D. OnGUI stays fully
+        // enabled as the animation-state machine (atlas load, frame timing); the 3D quad
+        // is an ADDITIONAL visual.
+        public Texture2D CurrentWeaponTexture
+        {
+            get { return (weaponAtlas != null) ? (curCustomTexture ? curCustomTexture : weaponAtlas.AtlasTexture) : (curCustomTexture ? curCustomTexture : null); }
+        }
+        public Rect CurrentAnimRect { get { return curAnimRect; } }
 
         #endregion
 
