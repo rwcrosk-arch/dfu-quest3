@@ -1127,6 +1127,40 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        // DFUQuest3 VR: direct melee trigger. An injected InputManager.Actions.SwingWeapon
+        // action never reaches Update() (VRActionInjector runs at order 100, AFTER
+        // InputManager.Update moved/cleared the action lists at order 0), so the grip
+        // button must drive the attack state directly. This mirrors the Update() attack
+        // initiation path for a click attack: unsheathed weapon, not mid-attack, not on
+        // bow cooldown, not paralyzed/climbing, then ExecuteAttacks() which runs the
+        // ScreenWeapon animation; the hit-frame check later in Update() calls
+        // MeleeDamage() and applies real damage/fatigue via the normal path.
+        public void VRTriggerAttack()
+        {
+            if (Sheathed || isAttacking)
+                return;
+            if (ScreenWeapon == null)
+                return;
+            if (Time.time < cooldownTime)
+                return;
+            var gm = GameManager.Instance;
+            if (gm != null && gm.PlayerEntity != null)
+            {
+                if (gm.PlayerEntity.IsParalyzed)
+                    return;
+                if (gm.ClimbingMotor != null && gm.ClimbingMotor.IsClimbing)
+                    return;
+            }
+            if ((usingRightHand && EquipCountdownRightHand != 0)
+                || (!usingRightHand && EquipCountdownLeftHand != 0))
+                return;
+
+            MouseDirections dir = (MouseDirections)UnityEngine.Random.Range(
+                (int)MouseDirections.UpRight, (int)MouseDirections.DownRight + 1);
+            ExecuteAttacks(dir);
+            isAttacking = true;
+        }
+
         #endregion
     }
 }

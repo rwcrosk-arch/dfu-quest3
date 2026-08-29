@@ -87,11 +87,23 @@ namespace DFUQuest3
                 im.AddAction(act);
                 Debug.Log("[DFUQuest3] Y -> menu cycle: " + act);
             }
-            // Left grip -> left-hand weapon/shield use (SwingWeapon).
+            // Left grip -> left-hand attack. CALL DIRECTLY: a injected SwingWeapon action
+            // never reaches WeaponManager.Update (InputManager.Update at order 0 already
+            // moved/cleared the lists before this order-100 injector runs). Mirrors the
+            // ToggleSheath direct-call fix above.
             if (Pressed(VRActionBinder.GripLeftAction))
             {
-                im.AddAction(InputManager.Actions.SwingWeapon);
-                Debug.Log("[DFUQuest3] LeftGrip -> SwingWeapon (left hand)");
+                var wm = DaggerfallWorkshop.Game.GameManager.Instance?.WeaponManager;
+                if (wm != null)
+                {
+                    wm.VRTriggerAttack();
+                    Debug.Log("[DFUQuest3] LeftGrip -> VRTriggerAttack (direct)");
+                }
+                else
+                {
+                    im.AddAction(InputManager.Actions.SwingWeapon);
+                    Debug.Log("[DFUQuest3] LeftGrip -> SwingWeapon (fallback)");
+                }
             }
             // X button (left primary) -> Jump (HELD, like the spacebar). DFU's AcrobatMotor
             // checks HasAction(Jump) continuously + requires GroundedTime >= 0.1f.
@@ -134,11 +146,20 @@ namespace DFUQuest3
             {
                 im.AddAction(InputManager.Actions.Run);
             }
-            // Right grip -> right-hand weapon/shield use (SwingWeapon).
+            // Right grip -> right-hand attack (same direct-call rationale as left grip).
             if (Pressed(VRActionBinder.GripRightAction))
             {
-                im.AddAction(InputManager.Actions.SwingWeapon);
-                Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon (right hand)");
+                var wm = DaggerfallWorkshop.Game.GameManager.Instance?.WeaponManager;
+                if (wm != null)
+                {
+                    wm.VRTriggerAttack();
+                    Debug.Log("[DFUQuest3] RightGrip -> VRTriggerAttack (direct)");
+                }
+                else
+                {
+                    im.AddAction(InputManager.Actions.SwingWeapon);
+                    Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon (fallback)");
+                }
             }
             // Menu button -> CONTEXT-AWARE. If a window is open (WindowCount>0, i.e. not
             // just the HUD), it acts as BACK/EXIT (close the top window). If no window is

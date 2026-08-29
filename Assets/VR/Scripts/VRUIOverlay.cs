@@ -265,9 +265,16 @@ namespace DFUQuest3
 
             if (isGameplay)
             {
-                var mat = new Material(Shader.Find("DFUQuest3/VRUIChromaKey"));
-                if (mat == null || mat.shader == null)
-                    mat = new Material(Shader.Find("Unlit/Texture"));
+                // Never pass a null shader to new Material() (ArgumentNullException).
+                // If the chroma-key shader isn't compiled in this build, fall back
+                // to opaque Unlit/Texture once instead of throwing every Update.
+                Shader s = Shader.Find("DFUQuest3/VRUIChromaKey");
+                if (s == null || !s.isSupported)
+                {
+                    Debug.LogWarning("[DFUQuest3] VRUIChromaKey shader unavailable — panel stays opaque (Unlit/Texture).");
+                    s = Shader.Find("Unlit/Texture");
+                }
+                var mat = new Material(s);
                 mat.mainTexture = tex;
                 rend.sharedMaterial = mat;
             }

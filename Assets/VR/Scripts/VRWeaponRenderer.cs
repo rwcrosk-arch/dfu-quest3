@@ -34,14 +34,31 @@ namespace DFUQuest3
             quad.transform.localScale = new Vector3(quadWidth, quadHeight, 1f);
             var col = quad.GetComponent<Collider>();
             if (col) Destroy(col);
-            mat = new Material(Shader.Find("DFUQuest3/VRUIChromaKey"));
-            if (mat == null || mat.shader == null)
-                mat = new Material(Shader.Find("Unlit/Transparent Cutout"));
+            // Never pass a possibly-null shader to new Material() — it throws
+            // ArgumentNullException (param "shader") when Shader.Find returns null.
+            // On device the CGPROGRAM chroma-key shader may fail to compile (built-in
+            // pipeline path on this OpenXR/Vulkan build) even though it's in
+            // AlwaysIncludedShaders, so find first, then construct.
+            Shader s = Shader.Find("DFUQuest3/VRUIChromaKey");
+            if (s == null || !s.isSupported) { Debug.LogWarning("[DFUQuest3] VRUIChromaKey shader unavailable — using Unlit/Transparent Cutout fallback"); s = Shader.Find("Unlit/Transparent Cutout"); }
+            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Texture");
+            if (s == null || !s.isSupported) { BuildFallbackColorMaterial(); return; }
+            mat = new Material(s);
             quad.GetComponent<Renderer>().sharedMaterial = mat;
             quad.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             quad.GetComponent<Renderer>().receiveShadows = false;
             quad.SetActive(false);
             DontDestroyOnLoad(quad);
+        }
+
+        // Last-resort material when even built-in unlit shaders are stripped:
+        // a Sprites/Default material so at least SOMETHING renders.
+        void BuildFallbackColorMaterial()
+        {
+            var spriteShader = Shader.Find("Sprites/Default");
+            mat = spriteShader != null ? new Material(spriteShader)
+                                       : new Material(Shader.Find("Hidden/Internal-Colored"));
+            quad.GetComponent<Renderer>().sharedMaterial = mat;
         }
 
         void Update()
