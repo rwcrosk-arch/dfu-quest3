@@ -33,8 +33,8 @@ namespace DFUQuest3
         void Update()
         {
             bool wantShown = TextBoxFocused();
-            if (wantShown && board == null) Build();
-            if (!wantShown && board != null) { Destroy(board); board = null; return; }
+            if (wantShown && board == null) { Build(); Debug.Log("[DFUQuest3] VRKeyboard: built (TextBox focused)"); }
+            if (!wantShown && board != null) { Destroy(board); board = null; Debug.Log("[DFUQuest3] VRKeyboard: dismissed"); return; }
             if (board == null) return;
 
             AnchorInFrontOfHead();
@@ -45,7 +45,10 @@ namespace DFUQuest3
         {
             var ui = DaggerfallUI.Instance;
             var top = ui != null ? DaggerfallUI.UIManager.TopWindow : null;
-            return top != null && top.FocusControl is TextBox;
+            bool focused = top != null && top.FocusControl is TextBox;
+            if (top != null && top.FocusControl != null && !focused)
+                Debug.Log("[DFUQuest3] VRKeyboard: top=" + top.GetType().Name + " focus=" + top.FocusControl.GetType().Name);
+            return focused;
         }
 
         void Build()
