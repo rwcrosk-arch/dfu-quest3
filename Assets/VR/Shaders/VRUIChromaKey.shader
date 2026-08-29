@@ -13,7 +13,7 @@ Shader "DFUQuest3/VRUIChromaKey"
     {
         _MainTex ("Texture", 2D) = "white" {}
         _KeyColor ("Key Color", Color) = (0,0,0,1)
-        _Threshold ("Threshold", Range(0,1)) = 0.02
+        _Threshold ("Threshold", Range(0,1)) = 0.01
     }
     SubShader
     {
@@ -62,10 +62,10 @@ Shader "DFUQuest3/VRUIChromaKey"
 
                 // Chroma-key: distance from key color (black). Pixels close to
                 // black become fully transparent; everything else keeps color.
-                // Tight band so only near-black background is keyed, not dark
-                // HUD/menu/weapon shading.
+                // Very tight band so ONLY near-pure-black background is keyed,
+                // never dark HUD/menu/weapon shading.
                 half dist = distance(col.rgb, _KeyColor.rgb);
-                half alpha = smoothstep(_Threshold, _Threshold + 0.08h, dist);
+                half alpha = smoothstep(_Threshold, _Threshold + 0.03h, dist);
 
                 // Return color with keyed alpha. Premultiply not needed since
                 // we use standard SrcAlpha/OneMinusSrcAlpha blending.
