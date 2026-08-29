@@ -256,6 +256,10 @@ namespace DFUQuest3
         // texture, swapping only the shader so black becomes transparent in gameplay.
         void SetPanelMaterialForMode(bool isGameplay)
         {
+            // The UI panel stays OPAQUE (Unlit/Texture) in ALL modes. Chroma-key is only
+            // for the weapon quad (VRWeaponRenderer) — applying it to the panel cuts off
+            // dark menu/window backgrounds (inventory, spellbook, etc.), which are part of
+            // the UI. The HUD black background is a separate, deferred issue.
             if (panelGO == null || isGameplay == panelModeGameplay) return;
             panelModeGameplay = isGameplay;
 
@@ -263,31 +267,9 @@ namespace DFUQuest3
             if (rend == null) return;
             var tex = rend.sharedMaterial != null ? rend.sharedMaterial.mainTexture : null;
 
-            if (isGameplay)
-            {
-                // Load custom chroma-key shader. It's in AlwaysIncludedShaders with
-                // correct fileID (4800000), so it compiles into the build. If the
-                // shader is somehow still missing, we log an error and keep the
-                // panel opaque rather than crash. The black background remains visible
-                // (not ideal) but the UI remains usable.
-                Shader s = Shader.Find("DFUQuest3/VRUIChromaKey");
-                if (s == null || !s.isSupported)
-                {
-                    Debug.LogError("[DFUQuest3] VRUIChromaKey shader NOT AVAILABLE in SetPanelMaterialForMode — " +
-                        "panel stays opaque (Unlit/Texture). Check AlwaysIncludedShaders fileID.");
-                    s = Shader.Find("Unlit/Texture");
-                    if (s == null) return; // last resort: don't change material
-                }
-                var mat = new Material(s);
-                mat.mainTexture = tex;
-                rend.sharedMaterial = mat;
-            }
-            else
-            {
-                var mat = new Material(Shader.Find("Unlit/Texture"));
-                mat.mainTexture = tex;
-                rend.sharedMaterial = mat;
-            }
+            var mat = new Material(Shader.Find("Unlit/Texture"));
+            mat.mainTexture = tex;
+            rend.sharedMaterial = mat;
         }
 
         void BuildReticle()
