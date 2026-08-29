@@ -13,7 +13,7 @@ Shader "DFUQuest3/VRUIChromaKey"
     {
         _MainTex ("Texture", 2D) = "white" {}
         _KeyColor ("Key Color", Color) = (0,0,0,1)
-        _Threshold ("Threshold", Range(0,1)) = 0.03
+        _Threshold ("Threshold", Range(0,1)) = 0.02
     }
     SubShader
     {
