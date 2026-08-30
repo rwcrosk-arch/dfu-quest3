@@ -89,6 +89,15 @@ namespace DFUQuest3
                     }
                 }
             }
+            // Diagnostic: log what's actually in the panel tree so we can see why the
+            // TextBox isn't found.
+            if (panel != null)
+            {
+                string comps = "";
+                for (int i = 0; i < panel.Components.Count; i++)
+                    comps += panel.Components[i].GetType().Name + " ";
+                Debug.Log("[DFUQuest3] VRKeyboard walk: parentPanel comps=[" + comps + "]");
+            }
             return false;
         }
 
