@@ -22,8 +22,8 @@ namespace DFUQuest3
             "asdfghjkl",
             "zxcvbnm",
         };
-        const float KeySize = 0.05f;   // key quad size in meters
-        const float KeyGap = 0.006f;
+        const float KeySize = 0.09f;   // key quad size in meters (bigger for readability)
+        const float KeyGap = 0.012f;
         const float BoardScale = 1.0f;
 
         GameObject board;
@@ -190,11 +190,11 @@ namespace DFUQuest3
             mat.color = special ? new Color(0.3f, 0.3f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.6f, 1f);
             rend.sharedMaterial = mat;
 
-            // TextMesh label
+            // TextMesh label — use a larger character size so it's readable in VR.
             var tm = go.AddComponent<TextMesh>();
             tm.text = label;
-            tm.characterSize = 0.02f;
-            tm.fontSize = 48;
+            tm.characterSize = 0.05f;
+            tm.fontSize = 64;
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
             tm.color = Color.white;
