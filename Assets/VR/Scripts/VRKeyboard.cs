@@ -50,7 +50,11 @@ namespace DFUQuest3
             }
 
             bool wantShown = TextBoxFocused();
-            if (wantShown && board == null) { Build(); Debug.Log("[DFUQuest3] VRKeyboard: built (TextBox focused)"); }
+            if (wantShown && board == null)
+            {
+                try { Build(); Debug.Log("[DFUQuest3] VRKeyboard: built (TextBox focused)"); }
+                catch (System.Exception e) { Debug.LogError("[DFUQuest3] VRKeyboard Build failed: " + e); }
+            }
             if (!wantShown && board != null) { Destroy(board); board = null; Debug.Log("[DFUQuest3] VRKeyboard: dismissed"); return; }
             if (board == null) return;
 
@@ -186,22 +190,37 @@ namespace DFUQuest3
             // which key the controller ray is pointing at.
 
             var rend = go.GetComponent<Renderer>();
-            var mat = new Material(Shader.Find("Unlit/Color"));
-            mat.color = special ? new Color(0.3f, 0.3f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.6f, 1f);
-            rend.sharedMaterial = mat;
+            // Null-safe shader lookup — new Material(null) throws. Unlit/Color is built-in
+            // but can be stripped; fall back to Unlit/Texture.
+            Shader s = Shader.Find("Unlit/Color");
+            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Texture");
+            if (s == null || !s.isSupported) s = Shader.Find("Sprites/Default");
+            if (s != null)
+            {
+                var mat = new Material(s);
+                mat.color = special ? new Color(0.3f, 0.3f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.6f, 1f);
+                rend.sharedMaterial = mat;
+            }
 
-            // TextMesh label — use a larger character size so it's readable in VR.
-            var tm = go.AddComponent<TextMesh>();
-            tm.text = label;
-            tm.characterSize = 0.05f;
-            tm.fontSize = 64;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.alignment = TextAlignment.Center;
-            tm.color = Color.white;
-            var tr = tm.transform;
-            tr.localPosition = new Vector3(0f, 0f, -0.01f);
-            tr.localScale = new Vector3(0.5f, 0.5f, 1f);
-            tr.localRotation = Quaternion.identity;
+            // TextMesh label — guard against a null font (Android default font can be null).
+            try
+            {
+                var tm = go.AddComponent<TextMesh>();
+                tm.text = label;
+                tm.characterSize = 0.05f;
+                tm.fontSize = 64;
+                tm.anchor = TextAnchor.MiddleCenter;
+                tm.alignment = TextAlignment.Center;
+                tm.color = Color.white;
+                var tr = tm.transform;
+                tr.localPosition = new Vector3(0f, 0f, -0.01f);
+                tr.localScale = new Vector3(0.5f, 0.5f, 1f);
+                tr.localRotation = Quaternion.identity;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e.Message);
+            }
         }
 
         void AnchorInFrontOfHead()
