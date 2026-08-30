@@ -9,6 +9,7 @@
 using UnityEngine;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.UserInterface;
+using DaggerfallWorkshop.Game.UserInterfaceWindows;
 
 namespace DFUQuest3
 {
@@ -72,30 +73,15 @@ namespace DFUQuest3
                 return true;
 
             // Walk the panel's components for any TextBox. DFU windows add their TextBox
-            // to NativePanel.Components (or a panel nested inside NativePanel), and
-            // NativePanel is a child of ParentPanel — so recurse into both.
+            // to NativePanel.Components (or a panel nested inside NativePanel). The
+            // ParentPanel walk came up EMPTY on-device, so check NativePanel directly
+            // (DaggerfallBaseWindow exposes it) as well as the ParentPanel tree.
+            if (top is DaggerfallBaseWindow baseWin && baseWin.NativePanel != null && ContainsTextBox(baseWin.NativePanel))
+                return true;
             var panel = top.ParentPanel;
             if (panel != null && ContainsTextBox(panel))
                 return true;
-            // Diagnostic: dump the full component tree so we can see where the TextBox is.
-            if (panel != null)
-            {
-                string tree = "";
-                DumpTree(panel, 0, ref tree);
-                Debug.Log("[DFUQuest3] VRKeyboard tree:\n" + tree);
-            }
             return false;
-        }
-
-        static void DumpTree(Panel panel, int depth, ref string tree)
-        {
-            for (int i = 0; i < panel.Components.Count; i++)
-            {
-                var c = panel.Components[i];
-                tree += new string(' ', depth * 2) + c.GetType().Name + "\n";
-                if (c is Panel p)
-                    DumpTree(p, depth + 1, ref tree);
-            }
         }
 
         // Recursively search a panel's component tree for a TextBox.
