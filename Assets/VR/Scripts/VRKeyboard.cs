@@ -206,14 +206,16 @@ namespace DFUQuest3
 
         void AnchorInFrontOfHead()
         {
-            var gm = GameManager.Instance;
-            if (gm == null) return;
-            Vector3 anchor = gm.PlayerObject ? gm.PlayerObject.transform.position : Vector3.zero;
-            var rig = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
-            Quaternion rigYaw = rig ? Quaternion.Euler(0, rig.transform.eulerAngles.y, 0) : Quaternion.identity;
-            // Place ~1.2m in front, ~1.4m up (eye-ish), facing the player.
-            Vector3 pos = anchor + rigYaw * new Vector3(0f, 1.4f, 1.2f);
-            board.transform.SetPositionAndRotation(pos, rigYaw * Quaternion.Euler(0, 0, 0));
+            // Anchor to the camera/head, NOT PlayerObject — in the char-creation screen
+            // there is no Player object yet, and gm.PlayerObject throws
+            // "GameManager could not find GameObject with tag Player" every frame,
+            // which propagated out of Update() and left the board at origin (invisible).
+            var cam = Camera.main;
+            if (cam == null) return;
+            Vector3 pos = cam.transform.position + cam.transform.forward * 1.2f;
+            pos.y = cam.transform.position.y - 0.1f; // slightly below eye level
+            Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
+            board.transform.SetPositionAndRotation(pos, rot);
         }
 
         void PollKeys()
