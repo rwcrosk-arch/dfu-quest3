@@ -71,32 +71,25 @@ namespace DFUQuest3
             if (focus is TextBox)
                 return true;
 
-            // Walk the panel's components for any TextBox.
+            // Walk the panel's components for any TextBox. DFU windows add their TextBox
+            // to NativePanel.Components (or a panel nested inside NativePanel), and
+            // NativePanel is a child of ParentPanel — so recurse into both.
             var panel = top.ParentPanel;
-            if (panel != null)
+            if (panel != null && ContainsTextBox(panel))
+                return true;
+            return false;
+        }
+
+        // Recursively search a panel's component tree for a TextBox.
+        static bool ContainsTextBox(Panel panel)
+        {
+            for (int i = 0; i < panel.Components.Count; i++)
             {
-                for (int i = 0; i < panel.Components.Count; i++)
-                {
-                    var c = panel.Components[i];
-                    if (c is TextBox)
-                        return true;
-                    // Also check nested panels (e.g. the save-name window).
-                    if (c is Panel p)
-                    {
-                        for (int j = 0; j < p.Components.Count; j++)
-                            if (p.Components[j] is TextBox)
-                                return true;
-                    }
-                }
-            }
-            // Diagnostic: log what's actually in the panel tree so we can see why the
-            // TextBox isn't found.
-            if (panel != null)
-            {
-                string comps = "";
-                for (int i = 0; i < panel.Components.Count; i++)
-                    comps += panel.Components[i].GetType().Name + " ";
-                Debug.Log("[DFUQuest3] VRKeyboard walk: parentPanel comps=[" + comps + "]");
+                var c = panel.Components[i];
+                if (c is TextBox)
+                    return true;
+                if (c is Panel p && ContainsTextBox(p))
+                    return true;
             }
             return false;
         }
