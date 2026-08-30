@@ -76,12 +76,36 @@ namespace DFUQuest3
             // to NativePanel.Components (or a panel nested inside NativePanel). The
             // ParentPanel walk came up EMPTY on-device, so check NativePanel directly
             // (DaggerfallBaseWindow exposes it) as well as the ParentPanel tree.
-            if (top is DaggerfallBaseWindow baseWin && baseWin.NativePanel != null && ContainsTextBox(baseWin.NativePanel))
-                return true;
+            bool nativeHas = false, parentHas = false;
+            if (top is DaggerfallBaseWindow baseWin && baseWin.NativePanel != null)
+            {
+                nativeHas = ContainsTextBox(baseWin.NativePanel);
+                if (nativeHas) return true;
+            }
             var panel = top.ParentPanel;
-            if (panel != null && ContainsTextBox(panel))
-                return true;
+            if (panel != null)
+            {
+                parentHas = ContainsTextBox(panel);
+                if (parentHas) return true;
+            }
+            // Diagnostic: log what each check found and dump the NativePanel tree.
+            string nativeTree = "";
+            if (top is DaggerfallBaseWindow bw && bw.NativePanel != null)
+                DumpTree(bw.NativePanel, 0, ref nativeTree);
+            Debug.Log("[DFUQuest3] VRKeyboard: nativeHas=" + nativeHas + " parentHas=" + parentHas +
+                " topType=" + top.GetType().Name + " nativeTree=\n" + nativeTree);
             return false;
+        }
+
+        static void DumpTree(Panel panel, int depth, ref string tree)
+        {
+            for (int i = 0; i < panel.Components.Count; i++)
+            {
+                var c = panel.Components[i];
+                tree += new string(' ', depth * 2) + c.GetType().Name + "\n";
+                if (c is Panel p)
+                    DumpTree(p, depth + 1, ref tree);
+            }
         }
 
         // Recursively search a panel's component tree for a TextBox.
