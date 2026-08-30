@@ -45,7 +45,8 @@ namespace DFUQuest3
                 Debug.Log("[DFUQuest3] VRKeyboard heartbeat: ui=" + (ui != null) +
                     " top=" + (top != null ? top.GetType().Name : "null") +
                     " focus=" + (fc != null ? fc.GetType().Name : "null") +
-                    " isTextBox=" + (fc is TextBox));
+                    " isTextBox=" + (fc is TextBox) +
+                    " isTextInputWin=" + (top != null && IsTextInputWindow(top)));
             }
 
             bool wantShown = TextBoxFocused();
