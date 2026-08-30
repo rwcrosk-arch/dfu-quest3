@@ -65,35 +65,51 @@ namespace DFUQuest3
             var top = ui != null ? DaggerfallUI.UIManager.TopWindow : null;
             if (top == null) return false;
 
-            // DFU char-name window adds the TextBox to ParentPanel.Components but does
-            // NOT set it as FocusControl, so walking the component tree is the reliable
-            // check. Also accept a null-focus TextBox (char-name field has UseFocus=false).
+            // RELIABLE PATH: DFU text-entry windows never set FocusControl (their
+            // TextBoxes use UseFocus=false + IME composition), and the NativePanel
+            // component walk proved unreliable on-device (Setup() is deferred until
+            // the window's first Update after dfUnity.IsReady, so freshly pushed
+            // windows can have an empty NativePanel containing only the auto-added
+            // "Outline" component — see Panel ctor). A window-type whitelist is the
+            // deterministic signal: these window classes ALWAYS show a TextBox for
+            // text input as soon as they are topmost.
+            if (IsTextInputWindow(top))
+                return true;
+
+            // Fallback 1: a TextBox actually has focus (e.g. AddTextBoxWithFocus boxes).
             var focus = top.FocusControl;
             if (focus is TextBox)
                 return true;
 
-            // Walk the panel's components for any TextBox. DFU windows add their TextBox
-            // to NativePanel.Components (or a panel nested inside NativePanel). The
-            // ParentPanel walk came up EMPTY on-device, so check NativePanel directly
-            // (DaggerfallBaseWindow exposes it) as well as the ParentPanel tree.
-            bool nativeHas = false, parentHas = false;
-            if (top is DaggerfallBaseWindow baseWin && baseWin.NativePanel != null)
-            {
-                nativeHas = ContainsTextBox(baseWin.NativePanel);
-                if (nativeHas) return true;
-            }
+            // Fallback 2: walk NativePanel / ParentPanel trees for any TextBox.
+            // Works once Setup() has run; harmless to keep for modded windows.
+            if (top is DaggerfallBaseWindow baseWin && baseWin.NativePanel != null
+                && ContainsTextBox(baseWin.NativePanel))
+                return true;
             var panel = top.ParentPanel;
-            if (panel != null)
-            {
-                parentHas = ContainsTextBox(panel);
-                if (parentHas) return true;
-            }
-            // Diagnostic: log what each check found and dump the NativePanel tree.
-            string nativeTree = "";
-            if (top is DaggerfallBaseWindow bw && bw.NativePanel != null)
-                DumpTree(bw.NativePanel, 0, ref nativeTree);
-            Debug.Log("[DFUQuest3] VRKeyboard: nativeHas=" + nativeHas + " parentHas=" + parentHas +
-                " topType=" + top.GetType().Name + " nativeTree=\n" + nativeTree);
+            if (panel != null && ContainsTextBox(panel))
+                return true;
+            return false;
+        }
+
+        // Window classes that present a text-entry TextBox when shown.
+        // Whitelist by runtime type name so mod windows can be added without
+        // compile-time references.
+        static readonly string[] TextInputWindowNames =
+        {
+            "CreateCharNameSelect",        // new-character name field
+            "CreateCharCustomClass",       // custom class name field
+            "DaggerfallUnitySaveGameWindow", // save-game name field
+            "DaggerfallInputMessageBox",   // generic text prompt
+            "DaggerfallBankingWindow",     // gold transaction amount
+        };
+
+        static bool IsTextInputWindow(DaggerfallWorkshop.Game.UserInterface.IUserInterfaceWindow window)
+        {
+            string name = window.GetType().Name;
+            for (int i = 0; i < TextInputWindowNames.Length; i++)
+                if (name == TextInputWindowNames[i])
+                    return true;
             return false;
         }
 
