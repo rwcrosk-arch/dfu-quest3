@@ -77,7 +77,25 @@ namespace DFUQuest3
             var panel = top.ParentPanel;
             if (panel != null && ContainsTextBox(panel))
                 return true;
+            // Diagnostic: dump the full component tree so we can see where the TextBox is.
+            if (panel != null)
+            {
+                string tree = "";
+                DumpTree(panel, 0, ref tree);
+                Debug.Log("[DFUQuest3] VRKeyboard tree:\n" + tree);
+            }
             return false;
+        }
+
+        static void DumpTree(Panel panel, int depth, ref string tree)
+        {
+            for (int i = 0; i < panel.Components.Count; i++)
+            {
+                var c = panel.Components[i];
+                tree += new string(' ', depth * 2) + c.GetType().Name + "\n";
+                if (c is Panel p)
+                    DumpTree(p, depth + 1, ref tree);
+            }
         }
 
         // Recursively search a panel's component tree for a TextBox.
