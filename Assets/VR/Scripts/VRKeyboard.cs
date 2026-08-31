@@ -202,10 +202,17 @@ namespace DFUQuest3
                 rend.sharedMaterial = mat;
             }
 
-            // TextMesh label — guard against a null font (Android default font can be null).
+            // TextMesh label — must assign a visible font explicitly (the default is null
+            // on Unity 6 Android, so text = throws NRE).
             try
             {
                 var tm = go.AddComponent<TextMesh>();
+                Font f = tm.font; // may be null
+                if (f == null)
+                    f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                if (f == null)
+                    f = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                if (f != null) tm.font = f;
                 tm.text = label;
                 tm.characterSize = 0.05f;
                 tm.fontSize = 64;
@@ -231,9 +238,14 @@ namespace DFUQuest3
             // which propagated out of Update() and left the board at origin (invisible).
             var cam = Camera.main;
             if (cam == null) return;
-            Vector3 pos = cam.transform.position + cam.transform.forward * 1.2f;
-            pos.y = cam.transform.position.y - 0.1f; // slightly below eye level
-            Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
+            // Position the keyboard BELOW the menu panel and slightly forward, tilted up
+            // toward the user so they look DOWN at it while typing (standard VR pattern).
+            Vector3 fwd = cam.transform.forward;
+            Vector3 pos = cam.transform.position + fwd * 0.9f;
+            pos.y = cam.transform.position.y - 0.45f; // below eye level
+            // Face the keyboard up toward the camera so its keys read when looking down.
+            Vector3 toKey = cam.transform.position - pos;
+            Quaternion rot = Quaternion.LookRotation(toKey.normalized);
             board.transform.SetPositionAndRotation(pos, rot);
         }
 
