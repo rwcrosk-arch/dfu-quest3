@@ -70,10 +70,14 @@ injecting an action. Examples:
 
 ---
 
-## 4. Cameras & Head Tracking
+## Cameras & Head Tracking
 
-- **`InputDevices.devicePosition` (HMD) is XR TRACKING space**, not world space. Must be
-  transformed through the XROrigin's world transform to get world position.
+- **RECURRING LESSON — do NOT trust Camera.main or raw HMD->XROrigin pose in the GAMEPLAY scene.** In DFU you spawn far from the world origin (StartCell 109/158). `Camera.main` resolves to a stale camera near origin; `FindFirstObjectByType<XROrigin>()` can return a rig that `VRRigBootstrap.LateUpdate` isn't actually driving, so the HMD pose converts to ~(0, 1.2, 0). Any world-space anchor (keyboard, panel, ray origin) using these lands at the world origin — far from the user, invisible/edge-on. THIS HAS BITTEN US 3× (panel, ray, keyboard).
+  **The authoritative head-in-world in gameplay is the PLAYER OBJECT**: `GameManager.PlayerObject.transform.pos + Vector3.up*1.5f` for position, `playerT.eulerAngles.y` (yaw only) for forward — exactly what `VRUIOverlay` anchors its panel to. Gate it on `GameManager.PlayerMotor != null && GameManager.PlayerObject != null` (PlayerMotor exists ONLY on the real playable player, not the char-creation temp). In the menu/char-creation scene, raw HMD tracking pose is correct (tracking origin == world origin there); fall back to camera after.
+  **Rule of thumb:** gameplay = PlayerObject + eye-height + yaw; menu = raw HMD/camera. Never `Camera.main` alone in gameplay.
+
+- `InputDevices.devicePosition` (HMD) is XR tracking space, not world space.
+- Rig-follow drives position AND yaw on the Player object; `VRRigBootstrap.LateUpdate` moves its OWN `xrOrigin` field (not necessarily any `FindFirstObjectByType<XROrigin>()` lookup).
 - **`Camera.main` is UNRELIABLE in gameplay** — it can resolve to a stale camera near the
   origin while the rig/player is elsewhere. Use the HMD pose via `InputDevices` +
   `XROrigin` transform (same as `VRUIOverlay`), or `GameManager.MainCamera`.

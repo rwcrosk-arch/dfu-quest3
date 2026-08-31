@@ -272,44 +272,64 @@ namespace DFUQuest3
             // they BURY the letter keys. The special keys sit lower / are on a
             // different row and escape the panel edge.
             //
-            // FIX: Use the SAME pose source as VRUIOverlay (HMD / GameManager.MainCamera
-            // / rig) so the keyboard is always anchored to the same head the overlay
-            // uses, instead of Camera.main which can be stale in gameplay.
+            // FIX: Use the SAME pose source as VRUIOverlay. In gameplay the
+            // authoritative head-in-world is the PLAYER OBJECT + eye-height offset
+            // (gm.PlayerObject gated on PlayerMotor — PlayerMotor only exists on the
+            // real playable player, not the char-creation temp). The raw HMD pose is
+            // TRACKING space; converting it via FindFirstObjectByType<XROrigin>()
+            // fails in gameplay because that lookup can return a rig that is not at
+            // the player (VRRigBootstrap.LateUpdate moves its own rig field, not
+            // necessarily the XROrigin instance we find), so head resolves to world
+            // origin and the board parks far from the user's face. PlayerObject +
+            // yaw is exactly what VRUIOverlay uses and always lands on the player.
             Vector3 headPos;
             Quaternion headRot;
-            // HMD pose via legacy InputDevices is the ground truth in every scene
-            // (reliable on Unity 6 + OpenXR, unlike controllers).
-            bool has = false;
-            headPos = Vector3.zero; headRot = Quaternion.identity;
-            var devs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-            UnityEngine.XR.InputDevices.GetDevices(devs);
-            foreach (var d in devs)
+
+            var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+            Transform playerT = null;
+            if (gm != null)
             {
-                if ((d.characteristics & UnityEngine.XR.InputDeviceCharacteristics.HeadMounted) != 0 &&
-                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
-                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                try
                 {
-                    headPos = hp; headRot = hr; has = true;
-                    // Convert TRACKING space to WORLD space via the XROrigin's world
-                    // transform — in gameplay the rig is moved to the player by
-                    // VRRigBootstrap, so raw HMD coords alone would park the board at the
-                    // tracking origin instead of in front of the player's face.
-                    var rigLocal = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
-                    if (rigLocal != null)
-                    {
-                        headPos = rigLocal.transform.TransformPoint(hp);
-                        headRot = rigLocal.transform.rotation * hr;
-                    }
-                    break;
+                    // PlayerMotor exists ONLY on the real gameplay player (not the
+                    // char-creation temp), so this is the reliable gameplay gate.
+                    if (gm.PlayerMotor != null && gm.PlayerObject != null)
+                        playerT = gm.PlayerObject.transform;
                 }
+                catch { }
             }
-            if (!has)
+
+            if (playerT != null)
             {
-                var gm = DaggerfallWorkshop.Game.GameManager.Instance;
-                Camera cam = (gm != null && gm.MainCamera != null) ? gm.MainCamera : Camera.main;
-                if (cam == null) return;
-                headPos = cam.transform.position;
-                headRot = cam.transform.rotation;
+                // Gameplay: player body at eye height, facing = player yaw.
+                headPos = playerT.position + Vector3.up * 1.5f;
+                headRot = Quaternion.Euler(0f, playerT.eulerAngles.y, 0f);
+            }
+            else
+            {
+                // Menu/char-creation: raw HMD pose is correct (tracking origin ==
+                // world origin there). No XROrigin transform needed.
+                bool has = false;
+                headPos = Vector3.zero; headRot = Quaternion.identity;
+                var devs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+                UnityEngine.XR.InputDevices.GetDevices(devs);
+                foreach (var d in devs)
+                {
+                    if ((d.characteristics & UnityEngine.XR.InputDeviceCharacteristics.HeadMounted) != 0 &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                        d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                    {
+                        headPos = hp; headRot = hr; has = true;
+                        break;
+                    }
+                }
+                if (!has)
+                {
+                    Camera cam = (gm != null && gm.MainCamera != null) ? gm.MainCamera : Camera.main;
+                    if (cam == null) return;
+                    headPos = cam.transform.position;
+                    headRot = cam.transform.rotation;
+                }
             }
 
             // Position the keyboard BELOW the menu panel (which sits ~2m ahead at eye
@@ -324,13 +344,14 @@ namespace DFUQuest3
             Quaternion rot = Quaternion.Euler(0, headRot.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
 
-            // One-shot position diagnostic: where is the board vs the camera/overlay?
+            // One-shot position diagnostic: where is the board vs the player/camera?
             if (!posLogged)
             {
                 posLogged = true;
-                var gm = DaggerfallWorkshop.Game.GameManager.Instance;
-                Camera cam = (gm != null && gm.MainCamera != null) ? gm.MainCamera : Camera.main;
-                Debug.Log("[DFUQuest3] VRKeyboard anchored: board=" + pos + " cam=" + (cam != null ? cam.transform.position.ToString() : "null") +
+                Camera diagCam = (gm != null && gm.MainCamera != null) ? gm.MainCamera : Camera.main;
+                Debug.Log("[DFUQuest3] VRKeyboard anchored: board=" + pos +
+                    " player=" + (playerT != null ? playerT.position.ToString() : "null") +
+                    " cam=" + (diagCam != null ? diagCam.transform.position.ToString() : "null") +
                     " head=" + headPos + " fwd=" + fwd + " rot=" + rot.eulerAngles);
             }
         }
