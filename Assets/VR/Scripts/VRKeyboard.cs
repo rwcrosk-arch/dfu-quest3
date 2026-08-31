@@ -202,16 +202,14 @@ namespace DFUQuest3
                 rend.sharedMaterial = mat;
             }
 
-            // TextMesh label — must assign a visible font explicitly (the default is null
-            // on Unity 6 Android, so text = throws NRE).
+            // TextMesh label — the builtin fonts (Arial/LegacyRuntime.ttf) are NOT in this
+            // stripped Android build, so tm.font is null and setting tm.text throws NRE.
+            // Load a real font that ships in the project's Resources instead.
             try
             {
                 var tm = go.AddComponent<TextMesh>();
-                Font f = tm.font; // may be null
-                if (f == null)
-                    f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                if (f == null)
-                    f = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                Font f = tm.font;
+                if (f == null) f = LoadKeyboardFont();
                 if (f != null) tm.font = f;
                 tm.text = label;
                 tm.characterSize = 0.05f;
@@ -238,15 +236,27 @@ namespace DFUQuest3
             // which propagated out of Update() and left the board at origin (invisible).
             var cam = Camera.main;
             if (cam == null) return;
-            // Position the keyboard BELOW the menu panel and slightly forward, tilted up
-            // toward the user so they look DOWN at it while typing (standard VR pattern).
-            Vector3 fwd = cam.transform.forward;
-            Vector3 pos = cam.transform.position + fwd * 0.9f;
-            pos.y = cam.transform.position.y - 0.45f; // below eye level
-            // Face the keyboard up toward the camera so its keys read when looking down.
-            Vector3 toKey = cam.transform.position - pos;
-            Quaternion rot = Quaternion.LookRotation(toKey.normalized);
+            // Keep the keyboard IN FRONT at eye level (the position that showed the grey
+            // key squares). The build-in font is null on this stripped Android build so
+            // TextMesh labels fail, but the board itself renders here.
+            Vector3 pos = cam.transform.position + cam.transform.forward * 1.2f;
+            pos.y = cam.transform.position.y - 0.1f; // slightly below eye level
+            Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
+        }
+
+        static Font cachedFont;
+        static Font LoadKeyboardFont()
+        {
+            if (cachedFont != null) return cachedFont;
+            // Resources folder path of a shipped font (no Assets/ prefix).
+            string[] tries = { "Fonts/OpenSans/OpenSansRegular", "Fonts/TESFonts/Kingthings Petrock", "Fonts/OpenSans/OpenSansSemibold" };
+            for (int i = 0; i < tries.Length; i++)
+            {
+                var f = Resources.Load<Font>(tries[i]);
+                if (f != null) { cachedFont = f; return f; }
+            }
+            return null;
         }
 
         void PollKeys()
