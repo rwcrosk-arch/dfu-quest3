@@ -209,12 +209,25 @@ namespace DFUQuest3
             if (s != null)
             {
                 var mat = new Material(s);
+                // In gameplay the save window's NativePanel UI quads can draw in the same
+                // world-space plane as this keyboard (both anchored to the camera). The
+                // 0.5-grey letter-key background (0.5f,0.5f,0.6f) gets chroma-keyed /
+                // depth-fought by DFU's dark panel backing, so letters vanish while the
+                // darker 0.3-grey special keys survive. Render keys ABOVE the overlay:
+                // disable depth testing and draw after everything else.
+                mat.renderQueue = 4000; // Overlay+: post-UI
+                mat.SetInt("_ZTest", 0); // Always
+                mat.SetInt("_ZWrite", 0);
+                // Unlit/Texture doesn't expose _ZTest/_ZWrite properties publicly; they
+                // are ignored, but renderQueue=4000 is enough on the Built-in pipeline.
                 var tex = BakeLabelTexture(label, bg);
                 if (tex != null)
                     mat.mainTexture = tex;
                 else
                     mat.color = bg;
                 rend.sharedMaterial = mat;
+                rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                rend.receiveShadows = false;
                 Debug.Log("[DFUQuest3] VRKeyboard MakeKey '" + label + "' special=" + special +
                     " tex=" + (tex != null ? tex.width + "x" + tex.height : "NULL") +
                     " matTex=" + (mat.mainTexture != null ? "set" : "null"));
@@ -247,14 +260,67 @@ namespace DFUQuest3
             // there is no Player object yet, and gm.PlayerObject throws
             // "GameManager could not find GameObject with tag Player" every frame,
             // which propagated out of Update() and left the board at origin (invisible).
-            var cam = Camera.main;
-            if (cam == null) return;
-            // Position the keyboard BELOW the menu panel (which sits ~1.2m ahead at eye
+            //
+            // CRITICAL: In gameplay the DFU UI overlay quad (VRUIOverlay) sits at
+            // cam.forward * 2.0m at eye height. The save-game window is drawn ON that
+            // quad. Our keyboard anchors at cam.forward * 1.0m / y-0.65m, which is
+            // BELOW the overlay quad. However, DFU's NativePanel components (like the
+            // save window's backdrop) are rendered as world-space UI quads by DFU's
+            // internal panel system. In gameplay those quads can extend downward far
+            // enough to overlap the keyboard, and because they draw later (same queue)
+            // they BURY the letter keys. The special keys sit lower / are on a
+            // different row and escape the panel edge.
+            //
+            // FIX: Use the SAME pose source as VRUIOverlay (HMD / GameManager.MainCamera
+            // / rig) so the keyboard is always anchored to the same head the overlay
+            // uses, instead of Camera.main which can be stale in gameplay.
+            Vector3 headPos;
+            Quaternion headRot;
+            // HMD pose via legacy InputDevices is the ground truth in every scene
+            // (reliable on Unity 6 + OpenXR, unlike controllers).
+            bool has = false;
+            headPos = Vector3.zero; headRot = Quaternion.identity;
+            var devs = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
+            UnityEngine.XR.InputDevices.GetDevices(devs);
+            foreach (var d in devs)
+            {
+                if ((d.characteristics & UnityEngine.XR.InputDeviceCharacteristics.HeadMounted) != 0 &&
+                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.devicePosition, out Vector3 hp) &&
+                    d.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out Quaternion hr))
+                {
+                    headPos = hp; headRot = hr; has = true;
+                    // Convert TRACKING space to WORLD space via the XROrigin's world
+                    // transform — in gameplay the rig is moved to the player by
+                    // VRRigBootstrap, so raw HMD coords alone would park the board at the
+                    // tracking origin instead of in front of the player's face.
+                    var rigLocal = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                    if (rigLocal != null)
+                    {
+                        headPos = rigLocal.transform.TransformPoint(hp);
+                        headRot = rigLocal.transform.rotation * hr;
+                    }
+                    break;
+                }
+            }
+            if (!has)
+            {
+                var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                Camera cam = (gm != null && gm.MainCamera != null) ? gm.MainCamera : Camera.main;
+                if (cam == null) return;
+                headPos = cam.transform.position;
+                headRot = cam.transform.rotation;
+            }
+
+            // Position the keyboard BELOW the menu panel (which sits ~2m ahead at eye
             // level) so the user looks DOWN at it while typing. Keep YAW-ONLY rotation
             // (facing forward) — a LookRotation tilt made the board edge-on and invisible.
-            Vector3 pos = cam.transform.position + cam.transform.forward * 1.0f;
-            pos.y = cam.transform.position.y - 0.65f; // below eye level (a bit lower)
-            Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
+            Vector3 fwd = headRot * Vector3.forward;
+            fwd.y = 0f;
+            if (fwd.sqrMagnitude < 0.001f) fwd = Vector3.forward;
+            fwd.Normalize();
+            Vector3 pos = headPos + fwd * 1.0f;
+            pos.y = headPos.y - 0.65f; // below eye level (a bit lower)
+            Quaternion rot = Quaternion.Euler(0, headRot.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
         }
 
