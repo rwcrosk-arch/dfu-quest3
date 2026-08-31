@@ -190,10 +190,10 @@ namespace DFUQuest3
             // which key the controller ray is pointing at.
 
             var rend = go.GetComponent<Renderer>();
-            // Null-safe shader lookup — new Material(null) throws. Unlit/Color is built-in
-            // but can be stripped; fall back to Unlit/Texture.
-            Shader s = Shader.Find("Unlit/Color");
-            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Texture");
+            // Use Unlit/Texture so the glyph texture (set below) actually renders.
+            // Unlit/Color ignores mainTexture — that's why labels never showed.
+            Shader s = Shader.Find("Unlit/Texture");
+            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Color");
             if (s == null || !s.isSupported) s = Shader.Find("Sprites/Default");
             if (s != null)
             {
