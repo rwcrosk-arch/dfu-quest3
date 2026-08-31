@@ -228,7 +228,7 @@ namespace DFUQuest3
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e + " | font=" + (f != null ? f.name : "null") + " mat=" + (f != null && f.material != null));
+                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e + " | font=" + (f != null ? f.name : "null") + " mat=" + (f != null && f.material != null) + "\n" + e.StackTrace);
             }
         }
 
