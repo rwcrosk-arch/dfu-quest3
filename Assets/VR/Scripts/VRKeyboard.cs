@@ -202,31 +202,32 @@ namespace DFUQuest3
                 rend.sharedMaterial = mat;
             }
 
-            // Label via the font ATLAS texture + UV rect (no TextMesh — its material is
-            // null on this stripped Android build, so tm.text throws NRE). Draw the glyph
-            // from the font's atlas onto the key quad.
+            // Label via TextMesh with a guaranteed font material. LoadKeyboardFont now
+            // creates a material if the font's is null (stripped builds), so tm.text
+            // won't throw NRE. The font-atlas-on-quad approach rendered the whole atlas
+            // (black) because the UV rect was wrong — TextMesh handles glyph layout.
             try
             {
                 Font f = LoadKeyboardFont();
-                if (f != null && f.material != null && f.material.mainTexture != null)
+                if (f != null)
                 {
-                    f.RequestCharactersInTexture(label, 64, FontStyle.Normal);
-                    CharacterInfo ci;
-                    if (f.GetCharacterInfo(label[0], out ci, 64, FontStyle.Normal))
-                    {
-                        var mat = rend.sharedMaterial;
-                        mat.mainTexture = f.material.mainTexture;
-                        // UV rect for the glyph in the atlas.
-                        Vector2 uvMin = ci.uvBottomLeft;
-                        Vector2 uvMax = ci.uvTopRight;
-                        mat.mainTextureOffset = uvMin;
-                        mat.mainTextureScale = uvMax - uvMin;
-                    }
+                    var tm = go.AddComponent<TextMesh>();
+                    tm.font = f;
+                    tm.text = label;
+                    tm.characterSize = 0.05f;
+                    tm.fontSize = 64;
+                    tm.anchor = TextAnchor.MiddleCenter;
+                    tm.alignment = TextAlignment.Center;
+                    tm.color = Color.white;
+                    var tr = tm.transform;
+                    tr.localPosition = new Vector3(0f, 0f, -0.01f);
+                    tr.localScale = new Vector3(0.5f, 0.5f, 1f);
+                    tr.localRotation = Quaternion.identity;
                 }
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning("[DFUQuest3] VRKeyboard atlas label failed for '" + label + "': " + e.Message);
+                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e.Message);
             }
         }
 
