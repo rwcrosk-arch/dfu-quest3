@@ -202,33 +202,31 @@ namespace DFUQuest3
                 rend.sharedMaterial = mat;
             }
 
-            // TextMesh label — the builtin fonts (Arial/LegacyRuntime.ttf) are NOT in this
-            // stripped Android build, so tm.font is null and setting tm.text throws NRE.
-            // Load a real font that ships in the project's Resources instead.
-            TextMesh tm = null;
+            // Label via the font ATLAS texture + UV rect (no TextMesh — its material is
+            // null on this stripped Android build, so tm.text throws NRE). Draw the glyph
+            // from the font's atlas onto the key quad.
             try
             {
-                tm = go.AddComponent<TextMesh>();
-                // ALWAYS load a real font — tm.font may return a non-null default that has
-                // no material on this stripped build (so tm.text throws NRE). Force ours.
                 Font f = LoadKeyboardFont();
-                if (f != null) tm.font = f;
-                else Debug.LogWarning("[DFUQuest3] VRKeyboard: LoadKeyboardFont returned null for '" + label + "'");
-                tm.text = label;
-                tm.characterSize = 0.05f;
-                tm.fontSize = 64;
-                tm.anchor = TextAnchor.MiddleCenter;
-                tm.alignment = TextAlignment.Center;
-                tm.color = Color.white;
-                var tr = tm.transform;
-                tr.localPosition = new Vector3(0f, 0f, -0.01f);
-                tr.localScale = new Vector3(0.5f, 0.5f, 1f);
-                tr.localRotation = Quaternion.identity;
+                if (f != null && f.material != null && f.material.mainTexture != null)
+                {
+                    f.RequestCharactersInTexture(label, 64, FontStyle.Normal);
+                    CharacterInfo ci;
+                    if (f.GetCharacterInfo(label[0], out ci, 64, FontStyle.Normal))
+                    {
+                        var mat = rend.sharedMaterial;
+                        mat.mainTexture = f.material.mainTexture;
+                        // UV rect for the glyph in the atlas.
+                        Vector2 uvMin = ci.uvBottomLeft;
+                        Vector2 uvMax = ci.uvTopRight;
+                        mat.mainTextureOffset = uvMin;
+                        mat.mainTextureScale = uvMax - uvMin;
+                    }
+                }
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e.Message +
-                    " font=" + (tm != null && tm.font != null ? tm.font.name : "null"));
+                Debug.LogWarning("[DFUQuest3] VRKeyboard atlas label failed for '" + label + "': " + e.Message);
             }
         }
 
@@ -258,11 +256,34 @@ namespace DFUQuest3
             for (int i = 0; i < tries.Length; i++)
             {
                 var f = Resources.Load<Font>(tries[i]);
-                if (f != null) { cachedFont = f; Debug.Log("[DFUQuest3] VRKeyboard font loaded: " + tries[i]); return f; }
+                if (f != null)
+                {
+                    // Ensure the font has a material (stripped builds can drop it).
+                    if (f.material == null)
+                    {
+                        var sh = Shader.Find("GUI/Text Shader");
+                        if (sh == null) sh = Shader.Find("Unlit/Texture");
+                        if (sh != null) f.material = new Material(sh);
+                    }
+                    cachedFont = f;
+                    Debug.Log("[DFUQuest3] VRKeyboard font loaded: " + tries[i] + " mat=" + (f.material != null));
+                    return f;
+                }
             }
             // Fallback: scan all Resources for any Font.
             var all = Resources.LoadAll<Font>("");
-            if (all != null && all.Length > 0) { cachedFont = all[0]; Debug.Log("[DFUQuest3] VRKeyboard font fallback: " + all[0].name); return cachedFont; }
+            if (all != null && all.Length > 0)
+            {
+                cachedFont = all[0];
+                if (cachedFont.material == null)
+                {
+                    var sh = Shader.Find("GUI/Text Shader");
+                    if (sh == null) sh = Shader.Find("Unlit/Texture");
+                    if (sh != null) cachedFont.material = new Material(sh);
+                }
+                Debug.Log("[DFUQuest3] VRKeyboard font fallback: " + all[0].name);
+                return cachedFont;
+            }
             Debug.LogWarning("[DFUQuest3] VRKeyboard: no font found in Resources");
             return null;
         }
