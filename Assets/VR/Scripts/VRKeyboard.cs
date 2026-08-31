@@ -30,6 +30,8 @@ namespace DFUQuest3
         bool shift;
         bool lastTrigger;
         public MCPPoseBridge poseBridge;
+        // Track letter keys so their labels can be re-baked when shift toggles.
+        readonly System.Collections.Generic.List<GameObject> letterKeys = new System.Collections.Generic.List<GameObject>();
 
         void Update()
         {
@@ -189,6 +191,10 @@ namespace DFUQuest3
             // Keep the collider — PollKeys raycasts against the key quads to detect
             // which key the controller ray is pointing at.
 
+            // Register letter keys so their labels can be re-baked when shift toggles.
+            if (!special && label.Length == 1 && char.IsLetter(label[0]))
+                letterKeys.Add(go);
+
             var rend = go.GetComponent<Renderer>();
             // Bake the glyph(s) into a per-key Texture2D from the dynamic font
             // atlas, then draw the key with Unlit/Texture. TextMesh NREs on
@@ -211,6 +217,24 @@ namespace DFUQuest3
             }
         }
 
+        // Re-bake letter-key labels to upper/lower case when shift toggles.
+        void RefreshLetterLabels()
+        {
+            for (int i = 0; i < letterKeys.Count; i++)
+            {
+                var go = letterKeys[i];
+                if (go == null) continue;
+                string baseLabel = go.name.Substring(4); // "Key_a" -> "a"
+                string disp = shift ? baseLabel.ToUpperInvariant() : baseLabel.ToLowerInvariant();
+                var rend = go.GetComponent<Renderer>();
+                if (rend == null || rend.sharedMaterial == null) continue;
+                Color bg = new Color(0.5f, 0.5f, 0.6f, 1f);
+                var tex = BakeLabelTexture(disp, bg);
+                if (tex != null)
+                    rend.sharedMaterial.mainTexture = tex;
+            }
+        }
+
         void AnchorInFrontOfHead()
         {
             // Anchor to the camera/head, NOT PlayerObject — in the char-creation screen
@@ -223,7 +247,7 @@ namespace DFUQuest3
             // level) so the user looks DOWN at it while typing. Keep YAW-ONLY rotation
             // (facing forward) — a LookRotation tilt made the board edge-on and invisible.
             Vector3 pos = cam.transform.position + cam.transform.forward * 1.0f;
-            pos.y = cam.transform.position.y - 0.5f; // below eye level
+            pos.y = cam.transform.position.y - 0.65f; // below eye level (a bit lower)
             Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
         }
@@ -445,7 +469,7 @@ namespace DFUQuest3
             if (ui == null) return;
             switch (label)
             {
-                case "Shift": shift = !shift; break;
+                case "Shift": shift = !shift; RefreshLetterLabels(); break;
                 case "Space": ui.QueueVRCharacter(' '); break;
                 case "Bksp": ui.QueueVRKey(KeyCode.Backspace); break;
                 case "Enter": ui.QueueVRKey(KeyCode.Return); break;
