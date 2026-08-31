@@ -149,6 +149,7 @@ namespace DFUQuest3
         {
             board = new GameObject("DFU VR Keyboard");
             board.transform.localScale = Vector3.one * BoardScale;
+            letterKeys.Clear(); // don't accumulate stale refs across rebuilds
 
             float rowH = KeySize + KeyGap;
             float totalH = Rows.Length * rowH + KeySize + KeyGap; // + special row
