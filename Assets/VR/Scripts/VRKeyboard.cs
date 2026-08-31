@@ -209,9 +209,11 @@ namespace DFUQuest3
             try
             {
                 tm = go.AddComponent<TextMesh>();
-                Font f = tm.font;
-                if (f == null) f = LoadKeyboardFont();
+                // ALWAYS load a real font — tm.font may return a non-null default that has
+                // no material on this stripped build (so tm.text throws NRE). Force ours.
+                Font f = LoadKeyboardFont();
                 if (f != null) tm.font = f;
+                else Debug.LogWarning("[DFUQuest3] VRKeyboard: LoadKeyboardFont returned null for '" + label + "'");
                 tm.text = label;
                 tm.characterSize = 0.05f;
                 tm.fontSize = 64;
