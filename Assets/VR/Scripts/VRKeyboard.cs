@@ -190,58 +190,24 @@ namespace DFUQuest3
             // which key the controller ray is pointing at.
 
             var rend = go.GetComponent<Renderer>();
-            // Use Unlit/Texture so the glyph texture (set below) actually renders.
-            // Unlit/Color ignores mainTexture — that's why labels never showed.
+            // Bake the glyph(s) into a per-key Texture2D from the dynamic font
+            // atlas, then draw the key with Unlit/Texture. TextMesh NREs on
+            // tm.text in this Unity 6 IL2CPP Android build even with a populated
+            // atlas (256x512 dynamic=True) — the TextGenerator path is broken.
+            // The GL-blit bake path only needs Font.RequestCharactersInTexture /
+            // GetCharacterInfo / font.material, all of which are confirmed working.
+            Color bg = special ? new Color(0.3f, 0.3f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.6f, 1f);
             Shader s = Shader.Find("Unlit/Texture");
-            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Color");
             if (s == null || !s.isSupported) s = Shader.Find("Sprites/Default");
             if (s != null)
             {
                 var mat = new Material(s);
-                mat.color = special ? new Color(0.3f, 0.3f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.6f, 1f);
+                var tex = BakeLabelTexture(label, bg);
+                if (tex != null)
+                    mat.mainTexture = tex;
+                else
+                    mat.color = bg;
                 rend.sharedMaterial = mat;
-            }
-
-            // Label via TextMesh with a guaranteed font + atlas. The font imports as
-            // DYNAMIC (.ttf importer has no 'character' field), so its glyph atlas
-            // (font.material.mainTexture) is null/empty until characters are requested.
-            // Setting tm.text before requesting characters makes TextGenerator grab the
-            // null atlas texture -> NRE inside IL2CPP (the exact null is
-            // Font.material.mainTexture). RequestCharactersInTexture populates the atlas
-            // first; then TextMesh can generate glyph UVs.
-            Font f = null;
-            try
-            {
-                f = LoadKeyboardFont();
-                if (f != null)
-                {
-                    // Populate the dynamic atlas BEFORE tm.text triggers mesh generation.
-                    f.RequestCharactersInTexture(label, 64, FontStyle.Normal);
-                    var atlas = f.material != null ? f.material.mainTexture : null;
-
-                    var tm = go.AddComponent<TextMesh>();
-                    tm.fontSize = 64;          // set size BEFORE text so generator uses it
-                    tm.font = f;
-                    tm.characterSize = 0.05f;
-                    tm.anchor = TextAnchor.MiddleCenter;
-                    tm.alignment = TextAlignment.Center;
-                    tm.color = Color.white;
-                    tm.text = label;           // LAST: this is what triggers generation
-                    var mr = tm.GetComponent<MeshRenderer>();
-                    if (mr != null && f.material != null)
-                        mr.sharedMaterial = f.material; // the material that owns the atlas
-                    var tr = tm.transform;
-                    tr.localPosition = new Vector3(0f, 0f, -0.01f);
-                    tr.localScale = new Vector3(0.5f, 0.5f, 1f);
-                    tr.localRotation = Quaternion.identity;
-                    Debug.Log("[DFUQuest3] VRKeyboard key '" + label + "': atlas=" +
-                        (atlas != null ? atlas.width + "x" + atlas.height : "NULL") +
-                        " dyn=" + f.dynamic);
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e + " | font=" + (f != null ? f.name : "null") + " mat=" + (f != null && f.material != null) + " atlas=" + (f != null && f.material != null && f.material.mainTexture != null) + " dyn=" + (f != null && f.dynamic) + "\n" + e.StackTrace);
             }
         }
 
@@ -260,6 +226,114 @@ namespace DFUQuest3
             pos.y = cam.transform.position.y - 0.1f; // slightly below eye level
             Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
+        }
+
+        // Per-label texture cache so rebuilt boards or repeated characters reuse bakes.
+        static readonly System.Collections.Generic.Dictionary<string, Texture2D> labelTexCache
+            = new System.Collections.Generic.Dictionary<string, Texture2D>();
+
+        // Bake a key label into a Texture2D: clear to the key's background color,
+        // then draw each glyph's quad from the dynamic font atlas using GL
+        // immediate mode into a RenderTexture. This path avoids TextMesh and
+        // TextGenerator entirely — the NRE source on Unity 6 IL2CPP Android.
+        static Texture2D BakeLabelTexture(string label, Color bg)
+        {
+            if (string.IsNullOrEmpty(label)) return null;
+            string cacheKey = label + "|" + bg;
+            Texture2D cached;
+            if (labelTexCache.TryGetValue(cacheKey, out cached) && cached != null)
+                return cached;
+
+            Font f = LoadKeyboardFont();
+            if (f == null)
+            {
+                Debug.LogWarning("[DFUQuest3] VRKeyboard: no font for label '" + label + "'");
+                return null;
+            }
+
+            try
+            {
+                const int glyphPx = 64;
+                f.RequestCharactersInTexture(label, glyphPx, FontStyle.Normal);
+                var atlasMat = f.material;
+                if (atlasMat == null || atlasMat.mainTexture == null)
+                {
+                    Debug.LogWarning("[DFUQuest3] VRKeyboard bake: font atlas null for '" + label + "'");
+                    return null;
+                }
+
+                // Gather glyph metrics to compute label width for centering.
+                var infos = new CharacterInfo[label.Length];
+                float totalAdv = 0f;
+                int valid = 0;
+                for (int i = 0; i < label.Length; i++)
+                {
+                    if (!f.GetCharacterInfo(label[i], out infos[i], glyphPx, FontStyle.Normal))
+                        infos[i] = new CharacterInfo();
+                    else
+                        valid++;
+                    totalAdv += infos[i].advance;
+                }
+                if (valid == 0)
+                {
+                    Debug.LogWarning("[DFUQuest3] VRKeyboard bake: no glyph info for '" + label + "'");
+                    return null;
+                }
+
+                // Render the label into a square RenderTexture (256px for 64px glyphs).
+                const int rtSize = 256;
+                var rt = RenderTexture.GetTemporary(rtSize, rtSize, 0,
+                    RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+                var prev = RenderTexture.active;
+                RenderTexture.active = rt;
+                GL.Clear(true, true, bg);
+
+                GL.PushMatrix();
+                GL.LoadPixelMatrix(0, rtSize, 0, rtSize); // bottom-left origin, pixels (matches ReadPixels)
+                atlasMat.SetPass(0);
+
+                float penX = (rtSize - totalAdv) * 0.5f;
+                float baselineY = rtSize * 0.5f;
+
+                GL.Begin(GL.QUADS);
+                GL.Color(Color.white);
+                for (int i = 0; i < label.Length; i++)
+                {
+                    CharacterInfo ci = infos[i];
+                    // Unity 6 CharacterInfo: uvBottomLeft/uvTopRight are Vector2 (UV
+                    // space, V up). 'bearing' is an int here, so center each glyph on
+                    // the pen position instead of using bearing offset.
+                    Vector2 uvBL = ci.uvBottomLeft;
+                    Vector2 uvTR = ci.uvTopRight;
+                    float gw = ci.glyphWidth;
+                    float gh = ci.glyphHeight;
+                    // Center the glyph at the pen x (single-char keys most common).
+                    float gx = penX + (ci.advance - gw) * 0.5f;
+                    float gyBottom = baselineY - gh * 0.5f;
+                    GL.TexCoord2(uvBL.x, uvTR.y); GL.Vertex3(gx, gyBottom + gh, 0f);
+                    GL.TexCoord2(uvTR.x, uvTR.y); GL.Vertex3(gx + gw, gyBottom + gh, 0f);
+                    GL.TexCoord2(uvTR.x, uvBL.y); GL.Vertex3(gx + gw, gyBottom, 0f);
+                    GL.TexCoord2(uvBL.x, uvBL.y); GL.Vertex3(gx, gyBottom, 0f);
+                    penX += ci.advance;
+                }
+                GL.End();
+                GL.PopMatrix();
+
+                var tex = new Texture2D(rtSize, rtSize, TextureFormat.RGBA32, false);
+                tex.ReadPixels(new Rect(0, 0, rtSize, rtSize), 0, 0);
+                tex.Apply();
+                RenderTexture.active = prev;
+                RenderTexture.ReleaseTemporary(rt);
+
+                labelTexCache[cacheKey] = tex;
+                Debug.Log("[DFUQuest3] VRKeyboard baked label '" + label + "' (" + valid + "/" + label.Length + " glyphs, adv=" + totalAdv + ")");
+                return tex;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[DFUQuest3] VRKeyboard bake failed for '" + label + "': " + e + "\n" + e.StackTrace);
+                return null;
+            }
         }
 
         const string KeyboardChars = "1234567890qwertyuiopasdfghjklzxcvbnmShiftSpaceBkspEnter";
