@@ -215,6 +215,9 @@ namespace DFUQuest3
                 else
                     mat.color = bg;
                 rend.sharedMaterial = mat;
+                Debug.Log("[DFUQuest3] VRKeyboard MakeKey '" + label + "' special=" + special +
+                    " tex=" + (tex != null ? tex.width + "x" + tex.height : "NULL") +
+                    " matTex=" + (mat.mainTexture != null ? "set" : "null"));
             }
         }
 
