@@ -219,11 +219,11 @@ namespace DFUQuest3
             // which propagated out of Update() and left the board at origin (invisible).
             var cam = Camera.main;
             if (cam == null) return;
-            // Keep the keyboard IN FRONT at eye level (the position that showed the grey
-            // key squares). The build-in font is null on this stripped Android build so
-            // TextMesh labels fail, but the board itself renders here.
-            Vector3 pos = cam.transform.position + cam.transform.forward * 1.2f;
-            pos.y = cam.transform.position.y - 0.1f; // slightly below eye level
+            // Position the keyboard BELOW the menu panel (which sits ~1.2m ahead at eye
+            // level) so the user looks DOWN at it while typing. Keep YAW-ONLY rotation
+            // (facing forward) — a LookRotation tilt made the board edge-on and invisible.
+            Vector3 pos = cam.transform.position + cam.transform.forward * 1.0f;
+            pos.y = cam.transform.position.y - 0.5f; // below eye level
             Quaternion rot = Quaternion.Euler(0, cam.transform.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
         }
