@@ -256,8 +256,12 @@ namespace DFUQuest3
             for (int i = 0; i < tries.Length; i++)
             {
                 var f = Resources.Load<Font>(tries[i]);
-                if (f != null) { cachedFont = f; return f; }
+                if (f != null) { cachedFont = f; Debug.Log("[DFUQuest3] VRKeyboard font loaded: " + tries[i]); return f; }
             }
+            // Fallback: scan all Resources for any Font.
+            var all = Resources.LoadAll<Font>("");
+            if (all != null && all.Length > 0) { cachedFont = all[0]; Debug.Log("[DFUQuest3] VRKeyboard font fallback: " + all[0].name); return cachedFont; }
+            Debug.LogWarning("[DFUQuest3] VRKeyboard: no font found in Resources");
             return null;
         }
 
