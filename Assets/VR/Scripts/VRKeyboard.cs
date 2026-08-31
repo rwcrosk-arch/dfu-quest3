@@ -205,9 +205,10 @@ namespace DFUQuest3
             // TextMesh label — the builtin fonts (Arial/LegacyRuntime.ttf) are NOT in this
             // stripped Android build, so tm.font is null and setting tm.text throws NRE.
             // Load a real font that ships in the project's Resources instead.
+            TextMesh tm = null;
             try
             {
-                var tm = go.AddComponent<TextMesh>();
+                tm = go.AddComponent<TextMesh>();
                 Font f = tm.font;
                 if (f == null) f = LoadKeyboardFont();
                 if (f != null) tm.font = f;
@@ -224,7 +225,8 @@ namespace DFUQuest3
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e.Message);
+                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e.Message +
+                    " font=" + (tm != null && tm.font != null ? tm.font.name : "null"));
             }
         }
 
