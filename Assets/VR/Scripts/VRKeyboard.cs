@@ -233,6 +233,8 @@ namespace DFUQuest3
                 var tex = BakeLabelTexture(disp, bg);
                 if (tex != null)
                     rend.sharedMaterial.mainTexture = tex;
+                else
+                    Debug.LogWarning("[DFUQuest3] VRKeyboard RefreshLetterLabels: re-bake null for '" + disp + "'");
             }
         }
 
