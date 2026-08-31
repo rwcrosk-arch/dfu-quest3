@@ -29,6 +29,7 @@ namespace DFUQuest3
         GameObject board;
         bool shift;
         bool lastTrigger;
+        bool posLogged;
         public MCPPoseBridge poseBridge;
         // Track letter keys so their labels can be re-baked when shift toggles.
         readonly System.Collections.Generic.List<GameObject> letterKeys = new System.Collections.Generic.List<GameObject>();
@@ -322,6 +323,16 @@ namespace DFUQuest3
             pos.y = headPos.y - 0.65f; // below eye level (a bit lower)
             Quaternion rot = Quaternion.Euler(0, headRot.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
+
+            // One-shot position diagnostic: where is the board vs the camera/overlay?
+            if (!posLogged)
+            {
+                posLogged = true;
+                var gm = DaggerfallWorkshop.Game.GameManager.Instance;
+                Camera cam = (gm != null && gm.MainCamera != null) ? gm.MainCamera : Camera.main;
+                Debug.Log("[DFUQuest3] VRKeyboard anchored: board=" + pos + " cam=" + (cam != null ? cam.transform.position.ToString() : "null") +
+                    " head=" + headPos + " fwd=" + fwd + " rot=" + rot.eulerAngles);
+            }
         }
 
         // Per-label texture cache so rebuilt boards or repeated characters reuse bakes.
