@@ -206,9 +206,10 @@ namespace DFUQuest3
             // creates a material if the font's is null (stripped builds), so tm.text
             // won't throw NRE. The font-atlas-on-quad approach rendered the whole atlas
             // (black) because the UV rect was wrong — TextMesh handles glyph layout.
+            Font f = null;
             try
             {
-                Font f = LoadKeyboardFont();
+                f = LoadKeyboardFont();
                 if (f != null)
                 {
                     var tm = go.AddComponent<TextMesh>();
@@ -227,7 +228,7 @@ namespace DFUQuest3
             }
             catch (System.Exception e)
             {
-                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e.Message);
+                Debug.LogWarning("[DFUQuest3] VRKeyboard TextMesh label failed for '" + label + "': " + e + " | font=" + (f != null ? f.name : "null") + " mat=" + (f != null && f.material != null));
             }
         }
 
