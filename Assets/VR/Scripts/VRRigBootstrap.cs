@@ -16,6 +16,8 @@ using UnityEngine.XR;
 using UnityEngine.InputSystem;
 using Unity.XR.CoreUtils;
 using DaggerfallWorkshop.Game;
+using System.Collections;
+using System.Reflection;
 
 namespace DFUQuest3
 {
@@ -30,6 +32,7 @@ namespace DFUQuest3
         private string lastFollowError; // dedupe follow-failure logs
         private bool followLogged;      // one-shot follow diagnostic
         private float followHeartbeat = 2f;
+        private bool ppv2DeployQueued;    // defer the PPv2 redeploy out of the stereo pass
 
         void Start()
         {
@@ -203,23 +206,19 @@ namespace DFUQuest3
                 // effect settings now that the real camera is set, so AA/AO/Bloom and the
                 // ambient/daylight rebind to the actual game camera.
                 var sgb = FindFirstObjectByType<DaggerfallWorkshop.Game.Utility.StartGameBehaviour>();
-                if (sgb != null)
+                if (sgb != null && !ppv2DeployQueued)
                 {
-                    var f = typeof(DaggerfallWorkshop.Game.Utility.StartGameBehaviour).GetField("postProcessLayer",
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    if (f != null) f.SetValue(sgb, null); // force re-resolve on next call
-                    try
-                    {
-                        sgb.DeployCoreGameEffectSettings(
-                            DaggerfallWorkshop.CoreGameEffectSettingsGroups.Antialiasing |
-                            DaggerfallWorkshop.CoreGameEffectSettingsGroups.AmbientOcclusion |
-                            DaggerfallWorkshop.CoreGameEffectSettingsGroups.Bloom);
-                        Debug.Log("[DFUQuest3] Re-deployed core game effect settings on the real game camera.");
-                    }
-                    catch (System.Exception e)
-                    {
-                        Debug.LogWarning("[DFUQuest3] Core effect settings re-deploy skipped: " + e.Message);
-                    }
+                    ppv2DeployQueued = true;
+                    // Do NOT DeployCoreGameEffectSettings here. Wire() runs from Update()
+                    // mid-frame inside the XR multi-pass stereo pass; calling it right now
+                    // re-inits PPv2 mid-pass and corrupts per-eye render state (broken
+                    // stereo: AO lands on one eye, the world-space VRKeyboard label overlay
+                    // drops from one eye -> blank letters on the save screen). Opening the
+                    // in-game effects menu fixes everything because it forces the SAME
+                    // deploy + a PostProcessLayer bounce, but in script phase (between
+                    // frames) where PPv2 rebuilds per-eye cleanly. Reproduce that here:
+                    // defer the deploy + layer bounce a couple frames out of the pass.
+                    StartCoroutine(DeferPpv2Redeploy());
                 }
 
                 // PostProcessLayer stays ENABLED. It was briefly disabled as part of the
@@ -243,6 +242,61 @@ namespace DFUQuest3
                 menuWired = true;
                 Debug.Log("[DFUQuest3] Menu camera wired to head tracking.");
             }
+        }
+
+        // Defer the PPv2 core-effect redeploy + a PostProcessLayer bounce a couple of
+        // frames AFTER the game camera wire, so it runs in script phase (between frames)
+        // instead of mid-XR-stereo-pass. This reproduces the "entering the effects menu"
+        // fix automatically. Touches NO runtime materials/textures (that split the eyes).
+        IEnumerator DeferPpv2Redeploy()
+        {
+            // Let the current frame finish (camera wire settles), then one more frame.
+            yield return null;   // end of first frame after Wire
+            yield return null;   // one clean frame in between
+
+            var sgb = FindFirstObjectByType<DaggerfallWorkshop.Game.Utility.StartGameBehaviour>();
+            if (sgb == null || dfCamera == null)
+            {
+                Debug.LogWarning("[DFUQuest3] Deferred PPv2 redeploy skipped (sgb/camera null).");
+                ppv2DeployQueued = false;
+                yield break;
+            }
+
+            try
+            {
+                // Force StartGameBehaviour to re-resolve its cached postProcessLayer,
+                // then re-push AA/AO/Bloom. Runs between frames -> PPv2 rebuilds cleanly.
+                var postField = typeof(DaggerfallWorkshop.Game.Utility.StartGameBehaviour)
+                    .GetField("postProcessLayer", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (postField != null) postField.SetValue(sgb, null);
+
+                sgb.DeployCoreGameEffectSettings(
+                    DaggerfallWorkshop.CoreGameEffectSettingsGroups.Antialiasing |
+                    DaggerfallWorkshop.CoreGameEffectSettingsGroups.AmbientOcclusion |
+                    DaggerfallWorkshop.CoreGameEffectSettingsGroups.Bloom);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[DFUQuest3] Deferred PPv2 redeploy error: " + e.Message);
+            }
+
+            // Bounce the PostProcessLayer off/on to force a clean per-eye PPv2 re-init
+            // (the same thing the effects-settings menu does when it re-applies).
+            // Yields must stay OUTSIDE the try (CS1626: can't yield in a try w/ catch).
+            var pp = dfCamera.GetComponent<UnityEngine.Rendering.PostProcessing.PostProcessLayer>();
+            if (pp != null)
+            {
+                pp.enabled = false;
+                yield return null;       // one frame with the layer off (clean reset)
+                pp.enabled = true;
+            }
+            else
+            {
+                yield return null;       // no layer to bounce; still settle a frame
+            }
+
+            Debug.Log("[DFUQuest3] Deferred PPv2 redeploy + layer bounce complete (stereo/keyboard fix).");
+            ppv2DeployQueued = false;
         }
     }
 }
