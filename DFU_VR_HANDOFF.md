@@ -1,5 +1,6 @@
 # DFU Quest3 VR — SESSION HANDOFF
 Generated: 2026-08-31 (EST, UTC-04:00)
+Updated: 2026-09-01 (stereo root cause found + milestone)
 
 ## WHERE WE ARE
 DFU VR port for Meta Quest 3 (Unity 6 / OpenXR / Vulkan, Multi-pass) is in a very
@@ -7,9 +8,50 @@ good, playable state. Milestones: pause menu, melee combat (unsheathe + attack),
 HUD transparency, weapon visible, full keyboard works on character-name screen.
 ONE open active bug on the keyboard (save screen letters blank).
 
+## STEREO SPLIT — ROOT CAUSE FOUND (2026-09-01) — FIX IS A SETTING, NOT CODE
+SYMPTOM: broken stereo in gameplay — right eye shows BLACK OUTLINES on poly edges
+(cell-shade look), left eye loses the world-space VRKeyboard label overlay (blank
+letters on save screen). Both eyes render the same world but through DIFFERENT
+post-processing states. Opening the in-game effects settings menu fixes BOTH and it
+sticks (it re-inits the real PP path).
+ROOT CAUSE: TAA (AntialiasingMethod=3) per-eye temporal-history corruption under
+OpenXR Multi-pass. TAA's temporal history buffer desyncs between the two eyes ->
+dark ghost edges on one eye's geometry + corrupted per-eye state drops the keyboard
+chars from the other eye. NOT a texture/geometry/keyboard-bake problem.
+FIX (CONFIRMED ON-HEADSET): set AntialiasingMethod=0 (None) in settings.ini.
+Stereo is now SOLID. This is a SETTINGS change, NOT a code change — a future restore
+must apply BOTH the code state AND this setting (see RESTORE below).
+NOTE: the deferred-PPv2-redeploy code (d66f84e) does NOT fix stereo and is NOT the
+cause of the fix; it is harmless but not the answer. The keyboard blank-letters on
+the save screen STILL requires the effects-settings trick even with TAA off — that
+is a SEPARATE, still-open bug (see ACTIVE BUG).
+
+## RESTORE / SAFE FALLBACK (how to actually get back to this working state)
+1. git checkout <milestone tag> (see MILESTONE TAGS) — restores the CODE.
+2. PUSH the on-device settings.ini with AntialiasingMethod=0 (TAA OFF). This is the
+   stereo fix and is NOT in git. The working restore file (AA=0, verified) lives at:
+   /home/ross/Distros/turboquant-home/dfu-backup-20260902/settings.ini.stereo-fixed-AA0
+   To restore: adb push that file to
+   /storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/settings.ini
+   then force-stop + relaunch. (settings.ini.pre-taatest is the PRE-test backup with
+   AA=3 — do NOT use it for restore.)
+3. Game data (arena2) is NOT in git — it lives on-device at
+   /storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/Daggerfall/arena2
+   and locally at /home/ross/Distros/turboquant-home/daggerfall-data/wine-df/drive_c/Daggerfall/.
+   A full uninstall wipes it; re-push from the local copy if needed.
+
+## ACTIVE BUG (DO NOT attempt fix in this session — hand off)
+VR KEYBOARD: letter keys BLANK on the SAVE GAME screen (reached from pause menu
+during GAMEPLAY), while special keys (Shift/Space/Bksp/Enter, bottom row) DO show.
+The SAME keyboard works 100% on the character-name screen (new-game MENU).
+STATUS 2026-09-01: still open. TAA-off fixed stereo but NOT this. The effects-
+settings trick (open the effects menu) still makes the letters appear and stick.
+This is a SEPARATE bug from the stereo split.
+
 ## WORKING DIRECTORY
 - Repo: /home/ross/Distros/turboquant-home/Projects/dfu-quest3   (branch master)
-- HEAD = 43ea817 (keyboard PlayerObject anchor + world-origin lesson doc), pushed.
+- HEAD = d66f84e (deferred PPv2 redeploy, no layer bounce) + milestone tag
+  milestone-stereo-taa-fixed. NOT pushed (see GIT DISCIPLINE).
 - Build cmd (see below). APK -> ~/dfu-builds/android/DFU.apk.
 - Docs in repo: DFU_VR_ARCHITECTURE.md, DFU_WINDOW_CATALOG.md, DFU_VR_TODO.md, ATTEMPTED_FIXES.md.
 
@@ -67,7 +109,8 @@ NEXT STEPS FOR NEW SESSION (investigate the per-row rendering, NOT anchoring):
   launch; adb forward tcp:8720.
 - Device log (binary — use grep -a): /storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/Player.log
 - On-device save: .../Saves/SAVE111/ ("GoodTutorial Character"). settings.ini:
-  StartInDungeon=False, VRSkipIntroQuests=true, ColorBoostEnable=False.
+  StartInDungeon=True, VRSkipIntroQuests=true, ColorBoostEnable=False,
+  AntialiasingMethod=0 (TAA OFF — the stereo fix, see STEREO SPLIT above).
 
 ## CONTROL MAP (live)
 Lstick=move; Rstick X=turn Y=pitch; Rtrig=activate/click; A=sheath/unsheathe;
@@ -96,4 +139,6 @@ rejected. Identity ross@turboquant.local. Remote git@github.com:rwcrosk-arch/dfu
 ## MILESTONE TAGS
 milestone-controls-sticks-working, -fullcolor-world, -hud-transparency,
 -jump-run-menuclicks, -melee-combat, -pause-menu, -raycast-menu-follow,
--weapon-visible, -keyboard-usable, -keyboard-labels, -keyboard-shift
+-weapon-visible, -keyboard-usable, -keyboard-labels, -keyboard-shift,
+milestone-stereo-taa-fixed (2026-09-01: TAA off fixes stereo; keyboard save-screen
+still open — see ACTIVE BUG)
