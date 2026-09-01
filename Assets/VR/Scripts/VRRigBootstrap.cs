@@ -244,10 +244,11 @@ namespace DFUQuest3
             }
         }
 
-        // Defer the PPv2 core-effect redeploy + a PostProcessLayer bounce a couple of
-        // frames AFTER the game camera wire, so it runs in script phase (between frames)
-        // instead of mid-XR-stereo-pass. This reproduces the "entering the effects menu"
-        // fix automatically. Touches NO runtime materials/textures (that split the eyes).
+        // Defer the PPv2 core-effect redeploy a couple of frames AFTER the game camera
+        // wire, so it runs in script phase (between frames) instead of mid-XR-stereo-pass.
+        // NOTE: this does NOT bounce PostProcessLayer.enabled — the code comment in Wire()
+        // warns NEVER to toggle the whole layer (it corrupts per-eye PPv2 state and no
+        // menu repair recovers it). Only re-push the effect settings.
         IEnumerator DeferPpv2Redeploy()
         {
             // Let the current frame finish (camera wire settles), then one more frame.
@@ -265,7 +266,7 @@ namespace DFUQuest3
             try
             {
                 // Force StartGameBehaviour to re-resolve its cached postProcessLayer,
-                // then re-push AA/AO/Bloom. Runs between frames -> PPv2 rebuilds cleanly.
+                // then re-push AA/AO/Bloom. Runs between frames, safe.
                 var postField = typeof(DaggerfallWorkshop.Game.Utility.StartGameBehaviour)
                     .GetField("postProcessLayer", BindingFlags.NonPublic | BindingFlags.Instance);
                 if (postField != null) postField.SetValue(sgb, null);
@@ -274,29 +275,17 @@ namespace DFUQuest3
                     DaggerfallWorkshop.CoreGameEffectSettingsGroups.Antialiasing |
                     DaggerfallWorkshop.CoreGameEffectSettingsGroups.AmbientOcclusion |
                     DaggerfallWorkshop.CoreGameEffectSettingsGroups.Bloom);
+
+                Debug.Log("[DFUQuest3] Deferred PPv2 redeploy complete (no layer bounce).");
             }
             catch (System.Exception e)
             {
                 Debug.LogWarning("[DFUQuest3] Deferred PPv2 redeploy error: " + e.Message);
             }
-
-            // Bounce the PostProcessLayer off/on to force a clean per-eye PPv2 re-init
-            // (the same thing the effects-settings menu does when it re-applies).
-            // Yields must stay OUTSIDE the try (CS1626: can't yield in a try w/ catch).
-            var pp = dfCamera.GetComponent<UnityEngine.Rendering.PostProcessing.PostProcessLayer>();
-            if (pp != null)
+            finally
             {
-                pp.enabled = false;
-                yield return null;       // one frame with the layer off (clean reset)
-                pp.enabled = true;
+                ppv2DeployQueued = false;
             }
-            else
-            {
-                yield return null;       // no layer to bounce; still settle a frame
-            }
-
-            Debug.Log("[DFUQuest3] Deferred PPv2 redeploy + layer bounce complete (stereo/keyboard fix).");
-            ppv2DeployQueued = false;
         }
     }
 }
