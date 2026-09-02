@@ -1,13 +1,14 @@
 # DFU Quest3 VR — SESSION HANDOFF
 Generated: 2026-08-31 (EST, UTC-04:00)
-Updated: 2026-09-02 (stereo fixed + pushed; keyboard bug is the active frontier)
+Updated: 2026-09-02 (KEYBOARD SAVE-SCREEN BUG SOLVED — root cause: white-on-white)
 
 ## WHERE WE ARE
 DFU VR port for Meta Quest 3 (Unity 6 / OpenXR / Vulkan, Multi-pass) is in a very
 good, playable state. Milestones: pause menu, melee combat (unsheathe + attack),
-HUD transparency, weapon visible, full keyboard works on character-name screen.
-Stereo split is FIXED (TAA off). ONE open active bug: keyboard letter keys blank on
-the save screen. This is the target for the next session.
+HUD transparency, weapon visible, full keyboard works everywhere (char-name AND
+save screen). Stereo split is FIXED (TAA off). Keyboard save-screen bug is SOLVED
+(see KEYBOARD SAVE-SCREEN — SOLVED). Next frontier: save/load game system (currently
+NOT working — see DFU_VR_TODO.md).
 
 ## STEREO SPLIT — ROOT CAUSE FOUND (2026-09-01) — FIX IS A SETTING, NOT CODE
 SYMPTOM: broken stereo in gameplay — right eye shows BLACK OUTLINES on poly edges
@@ -41,57 +42,45 @@ is a SEPARATE, still-open bug (see ACTIVE BUG).
    and locally at /home/ross/Distros/turboquant-home/daggerfall-data/wine-df/drive_c/Daggerfall/.
    A full uninstall wipes it; re-push from the local copy if needed.
 
-## ACTIVE BUG (the next session's target)
-VR KEYBOARD: letter keys BLANK on the SAVE GAME screen (reached from pause menu
-during GAMEPLAY), while special keys (Shift/Space/Bksp/Enter, bottom row) DO show.
-The SAME keyboard works 100% on the character-name screen (new-game MENU).
-STATUS 2026-09-02: still open. TAA-off fixed stereo but NOT this. The effects-
-settings trick (open the effects menu) still makes the letters appear and stick.
-This is a SEPARATE bug from the stereo split.
-
-LOG EVIDENCE (save screen):
-- EVERY key logs: "VRKeyboard MakeKey 'v' special=False tex=256x256 matTex=set" —
-  letter AND special both get a 256x256 texture, set on material. Bake succeeds:
-  "baked label 'v' (1/1 glyphs)" and "baked label 'Shift' (5/5 glyphs)".
-- Anchor diag: "board=(0.03,0.59,0.87) player=null head=(0.03,1.24,-0.13) fwd=(0,0,1)"
-  => board IS positioned correctly (~1m front, 0.65m low). Position is NOT the issue.
-- So: textures present, position correct, yet letter-key (upper rows) render blank
-  in gameplay but fine in menu. Per-row/per-context rendering issue, NOT anchoring.
-
-FIXES ALREADY TRIED (all failed for save screen):
-1. TextMesh labels -> NRE on Unity 6 Android. Replaced with BAKED Texture2D labels.
-2. Camera.main anchor -> stale (world origin) in gameplay.
-3. HMD pose via XROrigin -> also resolved near origin in gameplay (rig lookup issue).
-4. PlayerObject anchor (PlayerMotor-gate) 43ea817 -> player=null at build time on
-   save screen (PlayerMotor null then), fell back to HMD. Position now OK but bug persists.
-5. Deferred PPv2 redeploy + layer bounce (ee78b3c/d66f84e) -> does NOT fix the
-   keyboard; the whole-layer PPv2 bounce is harmful (see STEREO SPLIT note).
-
-NEXT STEPS FOR NEW SESSION (investigate the per-row rendering, NOT anchoring):
-- The letter keys are the TOP 3 ROWS; special keys the BOTTOM ROW. In gameplay the
-  top rows are blank, bottom shows. Suspect: occlusion/z-fight between the keyboard's
-  upper rows and the save window's dark NativePanel backdrop (drawn into the world
-  overlay panel in gameplay), OR a per-glyph bake UV/alpha issue that only manifests
-  on the save screen. The 2D panel (VRUIOverlay) sits ~2m ahead at eye level; the
-  keyboard is at eye-0.65m. Check the keyboard quad's layer/render-order vs the panel.
-- Compare BakeLabelTexture output content on-device: sample the baked Texture2D
-  pixels for a letter vs a special key (are letter glyphs actually in the texture?).
-  If letter pixels are blank/transparent -> bake content bug in gameplay; if present
-  -> occlusion/render-order bug. This single test splits the two paths.
-- Also verify: does the issue persist if you disable the 2D panel / move the keyboard
-  to a different world Z or layer? That isolates occlusion vs content.
-- NEW CLUE (2026-09-02): the effects-settings trick (open the effects menu, no toggle)
-  makes the letters appear AND stick. This is the SAME mechanism that fixed stereo —
-  a clean PPv2 re-init. So the keyboard blank-letters may ALSO be a per-eye PPv2
-  render-state issue (the label overlay drops from one eye), not occlusion. Investigate
-  whether the keyboard label quads are being drawn through a corrupted per-eye PP state
-  on the save screen specifically. The stereo fix (TAA off) did NOT clear it, so it is
-  a different PP effect or a different render path than TAA.
+## KEYBOARD SAVE-SCREEN BLANK LETTERS — SOLVED (2026-09-02) — WHITE-ON-WHITE
+SYMPTOM (historical): letter keys BLANK on the SAVE GAME screen (pause menu ->
+Save during GAMEPLAY); special keys (Shift/Space/Bksp/Enter) showed fine. The SAME
+keyboard worked 100% on the character-name screen. The "effects-menu trick" (open
+effects settings, close) made letters appear AND stick.
+ROOT CAUSE: the glyphs were rendering THE WHOLE TIME — as WHITE ink on a key
+background that gameplay's PPv2 post-processing (auto-exposure/bloom) blows out
+past clipping to WHITE. White glyph on white background = invisible. The special
+keys' background was a DARKER grey (0.3,0.3,0.4) so it survived brightening and
+stayed visible; the alphanum keys' lighter grey (0.5,0.5,0.6) clipped to white.
+The char-name screen had no PP brightening, so white-on-light-grey worked there.
+The effects-menu trick "fixed" it because opening/re-rendering any PP-adjacent UI
+re-evaluated exposure state (same mechanism family as the stereo TAA fix).
+HOW IT WAS FOUND (the diagnostic chain that worked):
+1. Always-on-top shader (VRKeyboardAlwaysOnTop: Overlay queue + ZTest Always +
+   ZWrite Off) -> did NOT fix. Ruled out occlusion/z-order (the handoff's prior
+   occlusion theory was WRONG — with ZTest Always, an occluded quad is impossible).
+2. Pixel-sampling baked textures on-device -> glyph ink PROVABLY present in the
+   CPU textures (20/36 letters had pure-white ink at sample points). Content fine.
+3. Cache-clear + full re-bake in gameplay -> no change. Cache invalidation ruled out.
+4. SOLID MAGENTA isolator (letters got a magenta texture, no bake/font/cache) ->
+   magenta VISIBLE on save screen. Quads/shader/draw-order/anchoring ALL proven good.
+5. MAGENTA BORDER test (bake + 12px magenta border stamped pre-upload) -> border
+   AND "blank" bg visible; Ross spotted the bg was WHITE in gameplay vs light-grey
+   in menu => white glyph on clipped-to-white background. Root cause confirmed.
+THE FIX (in code, commit milestone-keyboard-savename-fixed):
+- Alphanum key bg darkened to the same grey as special keys: Color(0.3,0.3,0.4)
+  for ALL keys, both screens (VRKeyboard.cs MakeKey + RefreshLetterLabels).
+- Kept the VRKeyboardAlwaysOnTop shader (harmless, still guarantees draw-after).
+- Magenta/border/cache-clear/pixel-sample diagnostics removed.
+LESSON: "blank" key labels in a post-processed scene — suspect tone/bloom clipping
+an off-white element into the background before assuming occlusion, bake bugs, or
+render-state corruption. A solid neon test texture (magenta) on the SAME quad is
+the fastest possible split between "not drawn" and "drawn without contrast".
 
 ## WORKING DIRECTORY
 - Repo: /home/ross/Distros/turboquant-home/Projects/dfu-quest3   (branch master)
-- HEAD = c2ea0ee (README rewrite) — PUSHED to origin/master.
-- Milestone tag milestone-stereo-taa-fixed (PUSHED). Working tree clean.
+- Milestone tag milestone-keyboard-savename-fixed (2026-09-02: keyboard letters
+  fixed on save screen — white-on-white root cause; see that section above).
 - Build cmd (see below). APK -> ~/dfu-builds/android/DFU.apk.
 - Docs in repo: DFU_VR_ARCHITECTURE.md, DFU_WINDOW_CATALOG.md, DFU_VR_TODO.md,
   ATTEMPTED_FIXES.md, README.md (rewritten for the fork).
@@ -152,5 +141,6 @@ rejected. Identity ross@turboquant.local. Remote git@github.com:rwcrosk-arch/dfu
 milestone-controls-sticks-working, -fullcolor-world, -hud-transparency,
 -jump-run-menuclicks, -melee-combat, -pause-menu, -raycast-menu-follow,
 -weapon-visible, -keyboard-usable, -keyboard-labels, -keyboard-shift,
-milestone-stereo-taa-fixed (2026-09-01: TAA off fixes stereo; keyboard save-screen
-still open — see ACTIVE BUG)
+milestone-stereo-taa-fixed (2026-09-01: TAA off fixes stereo),
+milestone-keyboard-savename-fixed (2026-09-02: save-screen keyboard letters fixed —
+white-on-white root cause; darker key bg for all keys)

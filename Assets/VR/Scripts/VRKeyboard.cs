@@ -190,8 +190,6 @@ namespace DFUQuest3
             go.transform.SetParent(board.transform, false);
             go.transform.localPosition = new Vector3(pos.x, pos.y, 0f);
             go.transform.localScale = new Vector3(KeySize, KeySize, 1f);
-            // Keep the collider — PollKeys raycasts against the key quads to detect
-            // which key the controller ray is pointing at.
 
             // Register letter keys so their labels can be re-baked when shift toggles.
             if (!special && label.Length == 1 && char.IsLetter(label[0]))
@@ -204,23 +202,29 @@ namespace DFUQuest3
             // atlas (256x512 dynamic=True) — the TextGenerator path is broken.
             // The GL-blit bake path only needs Font.RequestCharactersInTexture /
             // GetCharacterInfo / font.material, all of which are confirmed working.
-            Color bg = special ? new Color(0.3f, 0.3f, 0.4f, 1f) : new Color(0.5f, 0.5f, 0.6f, 1f);
-            Shader s = Shader.Find("Unlit/Texture");
-            if (s == null || !s.isSupported) s = Shader.Find("Sprites/Default");
+            // FINAL FIX (root cause found via magenta isolator + border test):
+            // The glyphs were ALWAYS rendering — as WHITE ink on a key background that
+            // PPv2 (auto-exposure/bloom in gameplay) blows out past clipping to WHITE.
+            // White-on-white = invisible letters. The darker special-key grey survived
+            // brightening, which is why only the alphanum keys went blank on the save
+            // screen while the menu (no PP brightening) always looked correct.
+            // FIX: darken the alphanum key background so white glyphs keep contrast
+            // after any brightening. Use the same darker grey as the special keys for
+            // a uniform board.
+            Color bg = new Color(0.3f, 0.3f, 0.4f, 1f); // darker grey for ALL keys
+
+            // Dedicated always-on-top shader: Overlay queue + ZTest Always + ZWrite Off,
+            // so the keys draw after (on top of) the DFU UI panel and the save window's
+            // dark NativePanel backdrop. Unlit/Texture does NOT honor _ZTest/_ZWrite via
+            // SetInt (not exposed properties) — this shader makes draw-after explicit.
+            Shader s = Shader.Find("DFUQuest3/VRKeyboardAlwaysOnTop");
+            if (s == null || !s.isSupported) s = Shader.Find("Unlit/Texture");
             if (s != null)
             {
                 var mat = new Material(s);
-                // In gameplay the save window's NativePanel UI quads can draw in the same
-                // world-space plane as this keyboard (both anchored to the camera). The
-                // 0.5-grey letter-key background (0.5f,0.5f,0.6f) gets chroma-keyed /
-                // depth-fought by DFU's dark panel backing, so letters vanish while the
-                // darker 0.3-grey special keys survive. Render keys ABOVE the overlay:
-                // disable depth testing and draw after everything else.
+                // Overlay queue is baked into the shader tag; keep renderQueue high
+                // as a belt-and-suspenders in case the tag is stripped.
                 mat.renderQueue = 4000; // Overlay+: post-UI
-                mat.SetInt("_ZTest", 0); // Always
-                mat.SetInt("_ZWrite", 0);
-                // Unlit/Texture doesn't expose _ZTest/_ZWrite properties publicly; they
-                // are ignored, but renderQueue=4000 is enough on the Built-in pipeline.
                 var tex = BakeLabelTexture(label, bg);
                 if (tex != null)
                     mat.mainTexture = tex;
@@ -246,7 +250,8 @@ namespace DFUQuest3
                 string disp = shift ? baseLabel.ToUpperInvariant() : baseLabel.ToLowerInvariant();
                 var rend = go.GetComponent<Renderer>();
                 if (rend == null || rend.sharedMaterial == null) continue;
-                Color bg = new Color(0.5f, 0.5f, 0.6f, 1f);
+                // Same darker grey as MakeKey — keep shift re-bakes consistent.
+                Color bg = new Color(0.3f, 0.3f, 0.4f, 1f);
                 var tex = BakeLabelTexture(disp, bg);
                 if (tex != null)
                     rend.sharedMaterial.mainTexture = tex;

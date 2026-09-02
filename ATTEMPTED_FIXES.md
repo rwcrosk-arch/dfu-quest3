@@ -135,12 +135,24 @@ in gameplay. This is the active frontier.
   per-eye PPv2 state such that even the effects-menu repair can't recover it.
 - Lesson: TAA is incompatible with OpenXR Multi-pass on this stack. Keep AA off.
 
-## KEYBOARD SAVE-SCREEN BLANK LETTERS — STILL OPEN (2026-09-02)
-- The effects-settings trick (open the effects menu, no toggle) makes the letters
-  appear AND stick. This is the SAME mechanism that fixed stereo (a clean PPv2
-  re-init). So the keyboard blank-letters may ALSO be a per-eye PPv2 render-state
-  issue (the label overlay drops from one eye), NOT occlusion.
-- TAA-off (the stereo fix) did NOT clear the keyboard bug — so it is a DIFFERENT PP
-  effect or render path than TAA. Investigate the keyboard label quads' per-eye PP
-  state on the save screen specifically.
-- See DFU_VR_HANDOFF.md ACTIVE BUG for the full evidence + next steps.
+## KEYBOARD SAVE-SCREEN BLANK LETTERS — SOLVED (2026-09-02) — WHITE-ON-WHITE, NOT OCCLUSION
+- The prior occlusion theory (save window's dark NativePanel burying letter rows)
+  was WRONG: the always-on-top shader (Overlay queue + ZTest Always + ZWrite Off,
+  new file VRKeyboardAlwaysOnTop.shader) did NOT change the symptom — and with
+  ZTest Always an occluded quad is impossible. Kept the shader (harmless).
+- Dead ends ruled out with on-device tests BEFORE the root cause was found:
+  1. Bake-content: pixel-sampling the baked textures proved glyph ink present
+     (20/36 letters had pure-white ink at sample points). Content was fine.
+  2. Cache invalidation: clearing the bake cache + full re-bake in gameplay
+     changed nothing.
+  3. "Not drawn at all": a SOLID MAGENTA texture on the letter quads WAS visible
+     on the save screen -> quads/shader/draw/anchor all good.
+- ROOT CAUSE (found by Ross from the magenta-border build): the glyphs rendered
+  THE WHOLE TIME as WHITE ink on a key bg that gameplay PPv2 (auto-exposure/bloom)
+  clips to WHITE. Special keys' darker grey (0.3,0.3,0.4) survived; the alphanum
+  keys' lighter grey (0.5,0.5,0.6) blew out. Menu had no brightening -> worked.
+- FIX: darken ALL key bgs to Color(0.3,0.3,0.4) (MakeKey + RefreshLetterLabels).
+  Verified on-headset: letters legible on BOTH screens, no effects-menu trick.
+- LESSON: for "invisible UI element" in a post-processed scene, FIRST test
+  contrast (solid neon texture on the same quad) before occlusion/bake/render-state
+  theories. White-on-white mimics "not drawn" perfectly.
