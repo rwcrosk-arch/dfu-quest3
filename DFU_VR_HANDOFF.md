@@ -1,12 +1,13 @@
 # DFU Quest3 VR — SESSION HANDOFF
 Generated: 2026-08-31 (EST, UTC-04:00)
-Updated: 2026-09-01 (stereo root cause found + milestone)
+Updated: 2026-09-02 (stereo fixed + pushed; keyboard bug is the active frontier)
 
 ## WHERE WE ARE
 DFU VR port for Meta Quest 3 (Unity 6 / OpenXR / Vulkan, Multi-pass) is in a very
 good, playable state. Milestones: pause menu, melee combat (unsheathe + attack),
 HUD transparency, weapon visible, full keyboard works on character-name screen.
-ONE open active bug on the keyboard (save screen letters blank).
+Stereo split is FIXED (TAA off). ONE open active bug: keyboard letter keys blank on
+the save screen. This is the target for the next session.
 
 ## STEREO SPLIT — ROOT CAUSE FOUND (2026-09-01) — FIX IS A SETTING, NOT CODE
 SYMPTOM: broken stereo in gameplay — right eye shows BLACK OUTLINES on poly edges
@@ -40,27 +41,15 @@ is a SEPARATE, still-open bug (see ACTIVE BUG).
    and locally at /home/ross/Distros/turboquant-home/daggerfall-data/wine-df/drive_c/Daggerfall/.
    A full uninstall wipes it; re-push from the local copy if needed.
 
-## ACTIVE BUG (DO NOT attempt fix in this session — hand off)
+## ACTIVE BUG (the next session's target)
 VR KEYBOARD: letter keys BLANK on the SAVE GAME screen (reached from pause menu
 during GAMEPLAY), while special keys (Shift/Space/Bksp/Enter, bottom row) DO show.
 The SAME keyboard works 100% on the character-name screen (new-game MENU).
-STATUS 2026-09-01: still open. TAA-off fixed stereo but NOT this. The effects-
+STATUS 2026-09-02: still open. TAA-off fixed stereo but NOT this. The effects-
 settings trick (open the effects menu) still makes the letters appear and stick.
 This is a SEPARATE bug from the stereo split.
 
-## WORKING DIRECTORY
-- Repo: /home/ross/Distros/turboquant-home/Projects/dfu-quest3   (branch master)
-- HEAD = d66f84e (deferred PPv2 redeploy, no layer bounce) + milestone tag
-  milestone-stereo-taa-fixed. NOT pushed (see GIT DISCIPLINE).
-- Build cmd (see below). APK -> ~/dfu-builds/android/DFU.apk.
-- Docs in repo: DFU_VR_ARCHITECTURE.md, DFU_WINDOW_CATALOG.md, DFU_VR_TODO.md, ATTEMPTED_FIXES.md.
-
-## ACTIVE BUG (DO NOT attempt fix in this session — hand off)
-VR KEYBOARD: letter keys BLANK on the SAVE GAME screen (reached from pause menu
-during GAMEPLAY), while special keys (Shift/Space/Bksp/Enter, bottom row) DO show.
-The SAME keyboard works 100% on the character-name screen (new-game MENU).
-
-LOG EVIDENCE (latest build, save screen):
+LOG EVIDENCE (save screen):
 - EVERY key logs: "VRKeyboard MakeKey 'v' special=False tex=256x256 matTex=set" —
   letter AND special both get a 256x256 texture, set on material. Bake succeeds:
   "baked label 'v' (1/1 glyphs)" and "baked label 'Shift' (5/5 glyphs)".
@@ -75,6 +64,8 @@ FIXES ALREADY TRIED (all failed for save screen):
 3. HMD pose via XROrigin -> also resolved near origin in gameplay (rig lookup issue).
 4. PlayerObject anchor (PlayerMotor-gate) 43ea817 -> player=null at build time on
    save screen (PlayerMotor null then), fell back to HMD. Position now OK but bug persists.
+5. Deferred PPv2 redeploy + layer bounce (ee78b3c/d66f84e) -> does NOT fix the
+   keyboard; the whole-layer PPv2 bounce is harmful (see STEREO SPLIT note).
 
 NEXT STEPS FOR NEW SESSION (investigate the per-row rendering, NOT anchoring):
 - The letter keys are the TOP 3 ROWS; special keys the BOTTOM ROW. In gameplay the
@@ -89,6 +80,21 @@ NEXT STEPS FOR NEW SESSION (investigate the per-row rendering, NOT anchoring):
   -> occlusion/render-order bug. This single test splits the two paths.
 - Also verify: does the issue persist if you disable the 2D panel / move the keyboard
   to a different world Z or layer? That isolates occlusion vs content.
+- NEW CLUE (2026-09-02): the effects-settings trick (open the effects menu, no toggle)
+  makes the letters appear AND stick. This is the SAME mechanism that fixed stereo —
+  a clean PPv2 re-init. So the keyboard blank-letters may ALSO be a per-eye PPv2
+  render-state issue (the label overlay drops from one eye), not occlusion. Investigate
+  whether the keyboard label quads are being drawn through a corrupted per-eye PP state
+  on the save screen specifically. The stereo fix (TAA off) did NOT clear it, so it is
+  a different PP effect or a different render path than TAA.
+
+## WORKING DIRECTORY
+- Repo: /home/ross/Distros/turboquant-home/Projects/dfu-quest3   (branch master)
+- HEAD = c2ea0ee (README rewrite) — PUSHED to origin/master.
+- Milestone tag milestone-stereo-taa-fixed (PUSHED). Working tree clean.
+- Build cmd (see below). APK -> ~/dfu-builds/android/DFU.apk.
+- Docs in repo: DFU_VR_ARCHITECTURE.md, DFU_WINDOW_CATALOG.md, DFU_VR_TODO.md,
+  ATTEMPTED_FIXES.md, README.md (rewritten for the fork).
 
 ## RECURRING LESSON (world-origin trap) — documented in DFU_VR_ARCHITECTURE.md
 - NEVER trust Camera.main or raw HMD->XROrigin pose as the sole anchor in the GAMEPLAY
@@ -104,6 +110,11 @@ NEXT STEPS FOR NEW SESSION (investigate the per-row rendering, NOT anchoring):
 - Unity: ~/Unity/Hub/Editor/6000.0.82f1/Editor/Unity. Build errors=14 (pre-existing).
 - Build: cd ~/Projects/dfu-quest3 && $UNITY -batchmode -quit -nographics -buildTarget
   Android -projectPath . -executeMethod BuildDFU.BuildAndroidDev -logFile ~/dfu-x.log
+- PITFALL (2026-09-02): the Meta XR SDK's HandReadiness tool does a remote JSON fetch
+  at editor startup that HANGS behind the GFW, stalling the build. Fix: seed the disk
+  cache at /tmp/Meta/remote_content/hrt_prompt.json (a valid {"version":1,...} JSON) so
+  the fetch short-circuits. If a build hangs at "Unloading 286 Unused Serialized files"
+  with HandReadiness in the log, re-seed that file and rebuild.
 - Device: serial 2G0YC1ZF9S0JFH, USB usb:2-2, package com.dfworkshop.dfuquest3.
   adb in ~/Android/Sdk/platform-tools. After build: adb install -r; force-stop; monkey
   launch; adb forward tcp:8720.
@@ -120,7 +131,7 @@ Lstick click=crouch; Rstick click=toggle run; Menu=context (pause options).
 ## KEY FILES
 - Assets/VR/Scripts/VRKeyboard.cs   (active bug; baked labels, anchor logic)
 - Assets/VR/Scripts/VRUIOverlay.cs   (2D panel; authoritative head anchor pattern)
-- Assets/VR/Scripts/VRRigBootstrap.cs (drives xrOrigin + yaw)
+- Assets/VR/Scripts/VRRigBootstrap.cs (drives xrOrigin + yaw; deferred PPv2 redeploy)
 - Assets/VR/Scripts/VRActionInjector.cs, VRTriggerBridge.cs, VRWeaponRenderer.cs
 - Assets/Scripts/Game/UserInterface/DaggerfallFont.cs, TextBox.cs
 - ProjectSettings/GraphicsSettings.asset (shader AlwaysIncluded fix: fileID 4800000)
@@ -134,7 +145,8 @@ ray depth-awareness. panelrewire marked resolved/rare.
 ## GIT DISCIPLINE
 Commit+push every good state; git tag -a milestone-<name>; --force only if push
 rejected. Identity ross@turboquant.local. Remote git@github.com:rwcrosk-arch/dfu-quest3.git
-(SSH-key auth; no secrets).
+(SSH-key auth; no secrets). NOTE: the remote URL in .git/config uses an x-access-token
+(ghp_...) — do not commit or echo that token.
 
 ## MILESTONE TAGS
 milestone-controls-sticks-working, -fullcolor-world, -hud-transparency,

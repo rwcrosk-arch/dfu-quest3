@@ -116,3 +116,31 @@ in gameplay. This is the active frontier.
   Commit b073966. Left-stick 180 negate removed when yaw moved to Player. Commit 8a19cf4.
 - Legacy joystick double-read: EnableController=false. Commit c14dae0.
 - Jump on X button (held, like spacebar). Commit 0066922.
+
+================================================================================
+## STEREO SPLIT — FIXED (2026-09-01) — SETTINGS, NOT CODE
+- Symptom: broken stereo in gameplay — right eye BLACK OUTLINES on poly edges
+  (cell-shade look), left eye loses the world-space VRKeyboard label overlay (blank
+  letters on save screen). Opening the in-game effects settings menu fixed BOTH and
+  stuck.
+- Root cause: TAA (AntialiasingMethod=3) per-eye temporal-history corruption under
+  OpenXR Multi-pass. TAA's history buffer desyncs between the eyes -> dark ghost
+  edges on one eye + corrupted per-eye state drops the keyboard chars from the other.
+- Fix: AntialiasingMethod=0 (None) in settings.ini. CONFIRMED on-headset. This is a
+  SETTINGS change, NOT in git. Restore file:
+  ~/Distros/turboquant-home/dfu-backup-20260902/settings.ini.stereo-fixed-AA0
+- The deferred-PPv2-redeploy code (ee78b3c/d66f84e) does NOT fix stereo. The
+  whole-layer PostProcessLayer.enabled bounce (in ee78b3c, removed in d66f84e) is
+  HARMFUL — DFU's own comment warns NEVER to toggle the whole layer; it corrupts
+  per-eye PPv2 state such that even the effects-menu repair can't recover it.
+- Lesson: TAA is incompatible with OpenXR Multi-pass on this stack. Keep AA off.
+
+## KEYBOARD SAVE-SCREEN BLANK LETTERS — STILL OPEN (2026-09-02)
+- The effects-settings trick (open the effects menu, no toggle) makes the letters
+  appear AND stick. This is the SAME mechanism that fixed stereo (a clean PPv2
+  re-init). So the keyboard blank-letters may ALSO be a per-eye PPv2 render-state
+  issue (the label overlay drops from one eye), NOT occlusion.
+- TAA-off (the stereo fix) did NOT clear the keyboard bug — so it is a DIFFERENT PP
+  effect or render path than TAA. Investigate the keyboard label quads' per-eye PP
+  state on the save screen specifically.
+- See DFU_VR_HANDOFF.md ACTIVE BUG for the full evidence + next steps.

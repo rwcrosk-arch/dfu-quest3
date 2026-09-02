@@ -123,6 +123,9 @@ injecting an action. Examples:
   **Bake labels into Texture2Ds** (GL.QUADS blit from the font atlas → ReadPixels) instead.
 - **`Texture2D(0,0)` throws on Unity 6** — use `Texture2D(2,2)`.
 - **PPv2 re-enabled** (darkening fix) — `ppLayer.enabled=false` disabled ColorBoost + AA.
+- **TAA is BROKEN under OpenXR Multi-pass** (2026-09-01): per-eye temporal-history
+  corruption -> right eye black poly outlines, left eye drops the VRKeyboard label overlay.
+  Fix: AntialiasingMethod=0 (None) in settings.ini. Keep AA off.
 - **Brightness comes from `RenderSettings.ambientLight`** (PlayerAmbientLight +
   SunlightManager.DaylightScale), NOT ColorBoost/PPv2.
 
@@ -157,6 +160,14 @@ injecting an action. Examples:
   in gameplay). Position below eye level (look-down to type), yaw-only rotation.
 - **Key labels:** bake into Texture2Ds from the font atlas (TextMesh is broken on IL2CPP).
   Re-bake to uppercase when shift toggles.
+- **OPEN BUG (save screen blank letters):** letter keys (top 3 rows) render blank on the
+  SAVE GAME screen during gameplay, while special keys (bottom row) show. Works 100% on
+  the char-name (menu) screen. Textures present, position correct — NOT anchoring/bake.
+  NEW CLUE (2026-09-02): opening the in-game effects settings menu (no toggle) makes the
+  letters appear AND stick — the same clean-PPv2-reinit mechanism that fixed stereo. So
+  this is likely ALSO a per-eye PPv2 render-state issue (label overlay drops from one eye),
+  NOT occlusion. TAA-off (stereo fix) did NOT clear it, so it's a different PP effect/path
+  than TAA. See DFU_VR_HANDOFF.md ACTIVE BUG.
 
 ---
 
@@ -182,3 +193,15 @@ injecting an action. Examples:
 - Segment every code change to only take effect in its intended phase (game-scene fix must
   be gated so it never runs in the menu/startup scene).
 - Keep `ATTEMPTED_FIXES.md` updated with failed fixes.
+
+## 12. Build Pitfall — Meta XR HandReadiness GFW hang (2026-09-02)
+
+- The Meta XR SDK's HandReadiness tool does a remote JSON fetch at editor startup
+  (`RemoteJsonContentDownloader` for `hrt_prompt.json`). Behind the Great Firewall this
+  HANGS the batch build indefinitely (log parks at "Unloading 286 Unused Serialized files"
+  with HandReadiness stack traces, ~4% CPU, no il2cpp child).
+- Fix: seed the disk cache at `/tmp/Meta/remote_content/hrt_prompt.json` with a valid
+  `{"version":1,"systemPrompt":"...","references":[]}` JSON. The downloader short-circuits
+  on a valid cache and skips the network. Re-seed if a build hangs.
+- The cache path is `Path.GetTempPath()/Meta/remote_content/` (see
+  `RemoteContentDownloader.cs`).
