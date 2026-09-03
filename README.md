@@ -94,25 +94,57 @@ is only patched surgically.
 
 ---
 
-## Building & installing
+## Getting it on your headset
+
+The easiest path is the prebuilt APK from the
+[latest release](https://github.com/rwcrosk-arch/dfu-quest3/releases) — no Unity or
+build tools needed. You'll need **adb** (part of
+[Android platform-tools](https://developer.android.com/tools/releases/platform-tools))
+on your computer and a USB cable to the headset.
 
 ### 1. Get the game data
 
-Extract a DOS Daggerfall install so you have the classic file structure (an `ARENA2`
-directory with `.BSA`/`.SND` files). On the headset it must live in the app's own
-external directory so scoped storage allows access:
-
-```
-/storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/Daggerfall/arena2
-```
-
-Set `MyDaggerfallPath` in `settings.ini` to point at `.../files/Daggerfall/`.
-
-### 2. Build the Android APK
-
-From the repo root (Unity 6000.0.82f1 on the PATH):
+The APK does not include Daggerfall's game data (it's ~500MB of classic files). Extract
+a DOS Daggerfall install so you have the classic file structure — an `ARENA2` directory
+with `.BSA`/`.SND` files — then push it to the app's own storage folder (scoped storage
+only allows the app to read its own directory):
 
 ```bash
+adb push <path-to-your>/Daggerfall/arena2 \
+  /storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/Daggerfall/arena2
+```
+
+### 2. Install the APK
+
+```bash
+adb install -r DFU-Quest3VR-beta1.apk
+adb shell monkey -p com.dfworkshop.dfuquest3 -c android.intent.category.LAUNCHER 1
+```
+
+(Or install the APK on the headset directly with the
+[Meta Quest Developer Hub](https://developers.meta.com/horizon/documentation/unity/ts-qt-device-manager/)
+if you prefer a GUI over adb.)
+
+### 3. First launch
+
+1. Put on the headset and grant any storage permission the app requests.
+2. The **settings screen** opens first — leave defaults if you're unsure (one checkbox
+   matters, see below), then press **Done**.
+3. The **New Game / Load Game** menu appears in-world. Pick your path and play.
+
+`settings.ini` is created on first run at
+`/storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/settings.ini`.
+One manual tweak matters for correct stereo: set `AntialiasingMethod=0` (see
+Known Issues).
+
+### Building from source (optional)
+
+You only need this if you want to modify the game. With **Unity 6000.0.82f1** and its
+Android build module installed:
+
+```bash
+git clone https://github.com/rwcrosk-arch/dfu-quest3.git
+cd dfu-quest3
 UNITY=/path/to/Unity/Hub/Editor/6000.0.82f1/Editor/Unity
 $UNITY -batchmode -nographics -quit \
   -logFile dfu-x.log \
@@ -120,21 +152,8 @@ $UNITY -batchmode -nographics -quit \
   -executeMethod BuildDFU.BuildAndroidDev
 ```
 
-The APK is written to `dfu-builds/android/DFU.apk`.
-
-### 3. Deploy to the headset
-
-```bash
-adb install -r dfu-builds/android/DFU.apk
-adb shell am force-stop com.dfworkshop.dfuquest3
-adb shell monkey -p com.dfworkshop.dfuquest3 -c android.intent.category.LAUNCHER 1
-```
-
-### 4. On-device settings
-
-`settings.ini` lives at
-`/storage/emulated/0/Android/data/com.dfworkshop.dfuquest3/files/settings.ini`.
-`AntialiasingMethod=0` is required for correct stereo (see Known Issues).
+The APK is written to `dfu-builds/android/DFU.apk`; install it with the adb commands
+from step 2.
 
 ---
 
