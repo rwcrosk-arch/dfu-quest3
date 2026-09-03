@@ -1,5 +1,0 @@
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/.utmp/RelWithDebInfo/3g534424/arm64-v8a/CMakeFiles/edit_cache.dir
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/.utmp/RelWithDebInfo/3g534424/arm64-v8a/CMakeFiles/rebuild_cache.dir
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/.utmp/RelWithDebInfo/3g534424/arm64-v8a/GameActivity/CMakeFiles/game.dir
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/.utmp/RelWithDebInfo/3g534424/arm64-v8a/GameActivity/CMakeFiles/edit_cache.dir
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/.utmp/RelWithDebInfo/3g534424/arm64-v8a/GameActivity/CMakeFiles/rebuild_cache.dir

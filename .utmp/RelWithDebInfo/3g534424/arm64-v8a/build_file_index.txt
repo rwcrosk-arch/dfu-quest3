@@ -1,2 +1,0 @@
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/CMakeLists.txt
-/home/ross/Distros/turboquant-home/Projects/dfu-quest3/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/src/main/cpp/GameActivity/CMakeLists.txt
