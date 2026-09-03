@@ -1,17 +1,14 @@
 # DFU Quest3 VR — SESSION HANDOFF
 Generated: 2026-08-31 (EST, UTC-04:00)
-Updated: 2026-09-04 (save/load WORKS everywhere incl. menu; separate start menu kept;
-Start-menu mirror artifact documented, low priority)
+Updated: 2026-09-04 (BETA: settings-first boot flow + save/load everywhere; ready for
+playtest solicitation)
 
 ## WHERE WE ARE
-DFU VR port for Meta Quest 3 (Unity 6 / OpenXR / Vulkan, Multi-pass) is in a very
-good, playable state. Milestones: pause menu, melee combat, HUD transparency, weapon
-visible, full keyboard everywhere, stereo fixed (TAA off), SAVE/LOAD WORKS everywhere
-— in-gameplay AND from the start menu (with one extra hop, see SAVE/LOAD below).
-Boot keeps the SEPARATE START MENU in the startup scene (SkipToStartWindow), per
-Ross's preference — it's the stable flow; a native-boot variant (menu over live world)
-was explored and stashed (git stash, see SAVE/LOAD NATIVE BOOT below). Known cosmetic
-issue: Start-menu background mirror artifact (documented below, low priority).
+DFU VR port for Meta Quest 3 (Unity 6 / OpenXR / Vulkan, Multi-pass) is in **BETA**:
+boot -> DFU settings wizard -> in-world New Game / Load Game menu -> new game (intro
+videos) or load game; in-gameplay save/load/switch-char; melee combat; full keyboard;
+stereo fixed (TAA off). See BOOT FLOW v2 below. Ready for playtest solicitation.
+Known cosmetic: Start-menu mirror artifact (documented below, low priority).
 
 ## STEREO SPLIT — ROOT CAUSE FOUND (2026-09-01) — FIX IS A SETTING, NOT CODE
 SYMPTOM: broken stereo in gameplay — right eye shows BLACK OUTLINES on poly edges
@@ -127,6 +124,28 @@ top (SetActive false in VRUIOverlay when top.GetType().Name=="DaggerfallStartWin
 if the infinite regress follows the ray, it's world-object capture in the leaked path.
 LOW PRIORITY: cosmetic, menu-only, non-blocking.
 
+## BOOT FLOW v2 — SETTINGS-FIRST, VERIFIED (2026-09-04) — BETA MILESTONE
+FINAL FLOW (all verified on-device 2026-09-04, milestone-beta-bootflow):
+App boot -> startup scene -> DFU Settings wizard (Options page; SkipToStartWindow
+REMOVED so it no longer fights the wizard) -> [Done] -> LaunchGame stage loads scene 1
+-> SGB TitleMenu -> InitGame -> New Game / Load Game menu IN GAMEPLAY LAND (menu over
+the live world) -> new game (with intro videos) or load game.
+WHY IT'S GOOD: settings-first (options + future mod checklist page), the gameplay-land
+menu is the native DFU stack (stable, videos work), and the mirroring artifact has not
+reappeared in this flow so far (watch it; the RT leak guards are active here for the
+first time with a gameplay-land menu).
+FIX THAT MADE THE WIZARD BOOTABLE: DaggerfallUnitySetupGameWizard.CreateBackdrop builds
+a real 3D city block (CUSTAA06.RMB) INTO the current scene — upstream runs the wizard
+only with the world live, so MeshReplacement's GameManager lookups (PlayerGPS) THROW in
+our startup scene, killing ShowOptionsPanel. CreateBackdrop is now try/catch: on failure
+it logs and continues with the plain dark background (backdrop is cosmetic).
+SkipToStartWindow.cs DELETED (git rm) — its push would have raced the wizard in the
+startup scene and double-pushed the Start window in scene 1; the wizard + native
+InitGame now cover both duties. settings.ini ShowOptionsAtStart must be True (it is).
+NOTE for restore: if the wizard ever regresses, SkipToStartWindow can be restored from
+git history (deleted at milestone-beta-bootflow); the previous separate-menu flow is
+milestone-saveload-startmenu.
+
 ## SAVE/LOAD NATIVE BOOT VARIANT — EXPLORED, STASHED (2026-09-03)
 An alternative boot flow was built and verified working end-to-end (save/load from the
 title menu over the live world, videos played, no extra hop): settings.ini
@@ -212,4 +231,6 @@ milestone-keyboard-savename-fixed (2026-09-02: save-screen keyboard letters fixe
 white-on-white root cause; darker key bg for all keys),
 milestone-saveload-startmenu (2026-09-04: save/load works everywhere incl. menu —
 SaveLoadManager guard-spawn + OnPush guard + menu-load deferral; separate start menu
-kept; native-boot variant stashed — see SAVE/LOAD NATIVE BOOT)
+kept; native-boot variant stashed — see SAVE/LOAD NATIVE BOOT),
+milestone-beta-bootflow (2026-09-04: BETA — settings-first boot, in-world menu,
+SkipToStartWindow removed, wizard backdrop try/catch; ready for playtesters)

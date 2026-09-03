@@ -254,8 +254,22 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         bool backdropCreated = false;
         void CreateBackdrop()
         {
-            // Add a block into the scene
-            GameObjectHelper.CreateRMBBlockGameObject("CUSTAA06.RMB", 0, 0, 0, 0);
+            // VR port: the backdrop is a real 3D city block built INTO the current scene
+            // (upstream boots this wizard after the game scene is live, so world lookups
+            // work). In our startup scene there is no StreamingWorld/PlayerGPS yet, and
+            // MeshReplacement's GameManager lookups THROW during block creation — which
+            // killed ShowOptionsPanel and left the wizard unusable at boot. Build the
+            // backdrop opportunistically: on failure keep the plain dark background and
+            // continue (settings fully functional; the 3D backdrop is cosmetic).
+            try
+            {
+                GameObjectHelper.CreateRMBBlockGameObject("CUSTAA06.RMB", 0, 0, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                DaggerfallUnity.LogMessage(string.Format(
+                    "SetupWizard: 3D backdrop unavailable in this scene ({0}). Continuing with plain background.", ex.Message), true);
+            }
             backdropCreated = true;
 
             // Clear background texture

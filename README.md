@@ -25,15 +25,26 @@ that augments DFU's existing cameras, input, and UI rather than replacing them.
   trigger, sheath/unsheathe, attack, jump, crouch, run toggle, magic menu, pause menu.
 - **Melee combat** — unsheathe and attack with the weapon visible as a 3D quad at your hand.
 - **World-space QWERTY keyboard** — for typing save / character names directly in VR.
+- **Save / load** — save, load, and switch character, both from the in-game pause menu
+  and from the start menu. Saves persist across app restarts.
+- **Boot flow** — game opens into DFU's settings wizard (options + future mod panel),
+  then flows into the in-world New Game / Load Game menu, with intro videos on new game.
 - **Classic Daggerfall content** — full arena2 game data, saves, quests.
+
+## Status: beta
+
+This build is stable enough for playtesting: new game creation, melee combat, saving,
+loading, and the full menu stack work end-to-end on the headset. Playtesters should
+read the known issues below.
 
 ## Known issues / current state
 
 - **Stereo fix**: Antialiasing must be set to `None` (`AntialiasingMethod=0` in
   `settings.ini`). TAA under OpenXR multi-pass corrupts per-eye temporal history —
   see `DFU_VR_HANDOFF.md` for the root-cause writeup.
-- **Keyboard on save screen**: letter keys can render blank on the save-game window
-  while the character-name screen shows them fine (this is a separate, still-open bug).
+- **Start-menu mirror artifact**: on the in-world New Game / Load Game menu, the
+  background can show a faint mirror-like reflection of the menu and the pointing ray.
+  Cosmetic only — the menu is fully usable. Under investigation.
 - See `DFU_VR_HANDOFF.md` for the full session handoff, and `DFU_VR_TODO.md` for the
   backlog (loot, 6DOF hands, 3D weapon modpack, VRAM leak, and more).
 
