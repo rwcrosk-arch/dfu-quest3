@@ -278,14 +278,52 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Update save game enumerations
             GameManager.Instance.SaveLoadManager.EnumerateSaves();
 
-            // Always start window with current player name
-            currentPlayerName = GameManager.Instance.PlayerEntity.Name;
+            // Start window with current player name.
+            // GUARD (VR port): PlayerEntity resolves through GameManager.PlayerObject ->
+            // GetGameObjectWithTag("Player"), which THROWS when no Player exists — that is
+            // the startup menu and every menu after game reset. The raw exception aborted
+            // OnPush before UpdateSavesList() could run, so the menu-time save list was
+            // ALWAYS EMPTY even though EnumerateSaves() one line earlier had just found
+            // the saves on disk (saves in gameplay-then-menu looked "not persisted").
+            // In menus, derive the character from save data instead (displayMostRecentChar
+            // path already handles this inside UpdateSavesList).
+            bool haveLivePlayer = false;
+            try
+            {
+                var gm = GameManager.Instance;
+                if (gm != null && gm.PlayerEntity != null && gm.PlayerEntityBehaviour != null)
+                {
+                    currentPlayerName = gm.PlayerEntity.Name;
+                    haveLivePlayer = true;
+                }
+            }
+            catch
+            {
+                // No live player (startup menu / post-reset) — fall back to save-data name below.
+                haveLivePlayer = false;
+            }
+            if (!haveLivePlayer)
+                currentPlayerName = string.Empty;
 
             // Update controls for save/load mode
             SetMode(mode);
 
             // Update saves list
             UpdateSavesList();
+
+            // Menu fallback: with no live player, select the most recent character from
+            // the enumerated saves so the list is populated (mode==LoadGame autoselects
+            // the newest save; mode==SaveGame shows the same character's save names).
+            if (!haveLivePlayer && string.IsNullOrEmpty(currentPlayerName))
+            {
+                int mostRecent = GameManager.Instance.SaveLoadManager.FindMostRecentSave();
+                if (mostRecent != -1)
+                {
+                    SaveInfo_v1 latestInfo = GameManager.Instance.SaveLoadManager.GetSaveInfo(mostRecent);
+                    currentPlayerName = latestInfo.characterName;
+                    UpdateSavesList();
+                }
+            }
 
             // Autoselect save at top of list
             if (mode == Modes.LoadGame && savesList.Count > 0)

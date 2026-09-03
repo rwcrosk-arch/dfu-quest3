@@ -1,14 +1,17 @@
 # DFU Quest3 VR — SESSION HANDOFF
 Generated: 2026-08-31 (EST, UTC-04:00)
-Updated: 2026-09-02 (KEYBOARD SAVE-SCREEN BUG SOLVED — root cause: white-on-white)
+Updated: 2026-09-04 (save/load WORKS everywhere incl. menu; separate start menu kept;
+Start-menu mirror artifact documented, low priority)
 
 ## WHERE WE ARE
 DFU VR port for Meta Quest 3 (Unity 6 / OpenXR / Vulkan, Multi-pass) is in a very
-good, playable state. Milestones: pause menu, melee combat (unsheathe + attack),
-HUD transparency, weapon visible, full keyboard works everywhere (char-name AND
-save screen). Stereo split is FIXED (TAA off). Keyboard save-screen bug is SOLVED
-(see KEYBOARD SAVE-SCREEN — SOLVED). Next frontier: save/load game system (currently
-NOT working — see DFU_VR_TODO.md).
+good, playable state. Milestones: pause menu, melee combat, HUD transparency, weapon
+visible, full keyboard everywhere, stereo fixed (TAA off), SAVE/LOAD WORKS everywhere
+— in-gameplay AND from the start menu (with one extra hop, see SAVE/LOAD below).
+Boot keeps the SEPARATE START MENU in the startup scene (SkipToStartWindow), per
+Ross's preference — it's the stable flow; a native-boot variant (menu over live world)
+was explored and stashed (git stash, see SAVE/LOAD NATIVE BOOT below). Known cosmetic
+issue: Start-menu background mirror artifact (documented below, low priority).
 
 ## STEREO SPLIT — ROOT CAUSE FOUND (2026-09-01) — FIX IS A SETTING, NOT CODE
 SYMPTOM: broken stereo in gameplay — right eye shows BLACK OUTLINES on poly edges
@@ -77,10 +80,73 @@ an off-white element into the background before assuming occlusion, bake bugs, o
 render-state corruption. A solid neon test texture (magenta) on the SAME quad is
 the fastest possible split between "not drawn" and "drawn without contrast".
 
+## SAVE/LOAD — WORKING EVERYWHERE (2026-09-04) — milestone-saveload-startmenu
+SYMPTOM (historical): saves persisted on disk but the START MENU's save list was always
+empty and switch-char dead; loading from the menu hung on "please wait" forever.
+ROOT CAUSES (two stacked, both menu-context crashes):
+1. No SaveLoadManager in the startup scene (true upstream too). GameManager.Instance's
+   get_SaveLoadManager -> FindObjectOfType -> null -> THROWS, killing
+   DaggerfallUnitySaveGameWindow.OnPush before EnumerateSaves() — list never populated.
+2. SaveLoadManager.Load's coroutine resolves PlayerDeath/PlayerMotor/PlayerEntity via
+   GameManager.PlayerObject, which THROWS with no live player (startup menu). Even past
+   that, SerializablePlayer is null in a worldless scene -> silent yield break. Hence
+   the eternal "please wait".
+FIXES (all in code, tagged milestone-saveload-startmenu):
+- VRStartGameBridge.Autostart: guard-spawn a SaveLoadManager in the startup scene
+  (self-registering singleton -> GameManager.Instance.SaveLoadManager resolves in menus).
+- DaggerfallUnitySaveGameWindow.OnPush: exception-safe PlayerEntity access; in menus
+  (no live player) fall back to FindMostRecentSave()'s characterName + rebuild list.
+- SaveLoadManager.Load(key): menu-context detection (PlayerMotor null) -> stash the key
+  (pendingMenuLoadKey static) + SceneManager.LoadScene(1); new static
+  CompletePendingMenuLoad() re-enters the normal Load path once a live player exists.
+- VRStartGameBridge game-scene branch: completes the deferred load when
+  HasPendingMenuLoad && GameManagerReady().
+RESULTING FLOW (separate-menu env, verified on-device 2026-09-04):
+DFU start menu -> Load Game -> [deferral: game scene boots, brief please-wait] ->
+new-game menu appears in gamemode -> Load Game again -> SAVE APPLIES (player now
+exists; log: "restored faction state from save"). The two-step is inherent: the
+startup scene has no player; scene 1 does. In-gameplay save/load/switch-char work
+directly (no hop).
+Also fixed along the way (from menu context): saves ARE written to
+files/Saves/SAVE<n> — never were in a temp folder; the menu crash merely hid them.
+
+## START-MENU MIRROR ARTIFACT — KNOWN COSMETIC (2026-09-04, low priority)
+On the Start menu (separate-menu env), the background shows a mirror-like reflection
+of the menu and the controller ray: one clean reflected copy below the panel, then an
+"infinite mirror" regress of the ray, shifting with HMD movement. The menu itself is
+perfect and usable. Evidence rules: NOT occlusion (ZTest Always shader didn't change
+it), NOT bake/cache (pixel sampling proved ink; cache-clear no-op), NOT the UI RT clear
+(hardcoded + context-aware clear both no-op), NOT behind-the-panel (a real black quad
+4cm behind the panel changed nothing but covered gameplay — reverted). Head-parallax +
+recursion signature points to a stereo/render-path feedback (panel displaying a target
+the eye cameras also write, or per-eye IMGUI timing), NOT any UI-texture issue.
+SAFE PARTIAL MITIGATIONS ALREADY IN (kept, harmless): try/finally RenderTexture.active
+guards in DaggerfallUI.OnGUI + VRKeyboard bake (prevent the active-RT leak class).
+NEXT PROBE IF WANTED (5-line test): hide ray + reticle while DaggerfallStartWindow is
+top (SetActive false in VRUIOverlay when top.GetType().Name=="DaggerfallStartWindow");
+if the infinite regress follows the ray, it's world-object capture in the leaked path.
+LOW PRIORITY: cosmetic, menu-only, non-blocking.
+
+## SAVE/LOAD NATIVE BOOT VARIANT — EXPLORED, STASHED (2026-09-03)
+An alternative boot flow was built and verified working end-to-end (save/load from the
+title menu over the live world, videos played, no extra hop): settings.ini
+ShowOptionsAtStart=False -> SceneControl forwards to scene 1 natively; SkipToStartWindow
+removed; VRSceneSetup made DontDestroyOnLoad (fixes a boot race: it was destroyed by the
+startup->game transition before OpenXR activated -> rig never built -> black screen).
+Ross PREFERRED the separate start menu for stability/extensibility (options/mods screens)
+and it was reverted. The stash 'menu-load deferral + native boot + RT leak guards'
+(git stash list) holds: native boot pieces + those fixes. Cherry-pick recipe:
+git checkout stash@{N} -- SaveLoadManager.cs DaggerfallUnitySaveGameWindow.cs
+  VRStartGameBridge.cs VRKeyboard.cs DaggerfallUI.cs VRSceneSetup.cs
+(skip SkipToStartWindow deletion + keep ShowOptionsAtStart=True for separate-menu flow).
+NOTE: settings.ini ShowOptionsAtStart is NOT in git — set True for separate menu,
+False for native boot. Current on-device: True (separate menu).
+
 ## WORKING DIRECTORY
 - Repo: /home/ross/Distros/turboquant-home/Projects/dfu-quest3   (branch master)
-- Milestone tag milestone-keyboard-savename-fixed (2026-09-02: keyboard letters
-  fixed on save screen — white-on-white root cause; see that section above).
+- Milestone tags: milestone-keyboard-savename-fixed (2026-09-02), 
+  milestone-saveload-startmenu (2026-09-04: save/load everywhere incl. menu,
+  separate start menu kept; stash holds the native-boot variant).
 - Build cmd (see below). APK -> ~/dfu-builds/android/DFU.apk.
 - Docs in repo: DFU_VR_ARCHITECTURE.md, DFU_WINDOW_CATALOG.md, DFU_VR_TODO.md,
   ATTEMPTED_FIXES.md, README.md (rewritten for the fork).
@@ -143,4 +209,7 @@ milestone-controls-sticks-working, -fullcolor-world, -hud-transparency,
 -weapon-visible, -keyboard-usable, -keyboard-labels, -keyboard-shift,
 milestone-stereo-taa-fixed (2026-09-01: TAA off fixes stereo),
 milestone-keyboard-savename-fixed (2026-09-02: save-screen keyboard letters fixed —
-white-on-white root cause; darker key bg for all keys)
+white-on-white root cause; darker key bg for all keys),
+milestone-saveload-startmenu (2026-09-04: save/load works everywhere incl. menu —
+SaveLoadManager guard-spawn + OnPush guard + menu-load deferral; separate start menu
+kept; native-boot variant stashed — see SAVE/LOAD NATIVE BOOT)

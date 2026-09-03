@@ -419,44 +419,56 @@ namespace DFUQuest3
                     RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
                 var prev = RenderTexture.active;
                 RenderTexture.active = rt;
-                GL.Clear(true, true, bg);
-
-                GL.PushMatrix();
-                GL.LoadPixelMatrix(0, rtSize, 0, rtSize); // bottom-left origin, pixels (matches ReadPixels)
-                atlasMat.SetPass(0);
-
-                float penX = (rtSize - totalAdv) * 0.5f;
-                float baselineY = rtSize * 0.5f;
-
-                GL.Begin(GL.QUADS);
-                GL.Color(Color.white);
-                for (int i = 0; i < label.Length; i++)
+                Texture2D tex = null;
+                try
                 {
-                    CharacterInfo ci = infos[i];
-                    // Unity 6 CharacterInfo: uvBottomLeft/uvTopRight are Vector2 (UV
-                    // space, V up). 'bearing' is an int here, so center each glyph on
-                    // the pen position instead of using bearing offset.
-                    Vector2 uvBL = ci.uvBottomLeft;
-                    Vector2 uvTR = ci.uvTopRight;
-                    float gw = ci.glyphWidth;
-                    float gh = ci.glyphHeight;
-                    // Center the glyph at the pen x (single-char keys most common).
-                    float gx = penX + (ci.advance - gw) * 0.5f;
-                    float gyBottom = baselineY - gh * 0.5f;
-                    GL.TexCoord2(uvBL.x, uvTR.y); GL.Vertex3(gx, gyBottom + gh, 0f);
-                    GL.TexCoord2(uvTR.x, uvTR.y); GL.Vertex3(gx + gw, gyBottom + gh, 0f);
-                    GL.TexCoord2(uvTR.x, uvBL.y); GL.Vertex3(gx + gw, gyBottom, 0f);
-                    GL.TexCoord2(uvBL.x, uvBL.y); GL.Vertex3(gx, gyBottom, 0f);
-                    penX += ci.advance;
-                }
-                GL.End();
-                GL.PopMatrix();
+                    GL.Clear(true, true, bg);
 
-                var tex = new Texture2D(rtSize, rtSize, TextureFormat.RGBA32, false);
-                tex.ReadPixels(new Rect(0, 0, rtSize, rtSize), 0, 0);
-                tex.Apply();
-                RenderTexture.active = prev;
-                RenderTexture.ReleaseTemporary(rt);
+                    GL.PushMatrix();
+                    GL.LoadPixelMatrix(0, rtSize, 0, rtSize); // bottom-left origin, pixels (matches ReadPixels)
+                    atlasMat.SetPass(0);
+
+                    float penX = (rtSize - totalAdv) * 0.5f;
+                    float baselineY = rtSize * 0.5f;
+
+                    GL.Begin(GL.QUADS);
+                    GL.Color(Color.white);
+                    for (int i = 0; i < label.Length; i++)
+                    {
+                        CharacterInfo ci = infos[i];
+                        // Unity 6 CharacterInfo: uvBottomLeft/uvTopRight are Vector2 (UV
+                        // space, V up). 'bearing' is an int here, so center each glyph on
+                        // the pen position instead of using bearing offset.
+                        Vector2 uvBL = ci.uvBottomLeft;
+                        Vector2 uvTR = ci.uvTopRight;
+                        float gw = ci.glyphWidth;
+                        float gh = ci.glyphHeight;
+                        // Center the glyph at the pen x (single-char keys most common).
+                        float gx = penX + (ci.advance - gw) * 0.5f;
+                        float gyBottom = baselineY - gh * 0.5f;
+                        GL.TexCoord2(uvBL.x, uvTR.y); GL.Vertex3(gx, gyBottom + gh, 0f);
+                        GL.TexCoord2(uvTR.x, uvTR.y); GL.Vertex3(gx + gw, gyBottom + gh, 0f);
+                        GL.TexCoord2(uvTR.x, uvBL.y); GL.Vertex3(gx + gw, gyBottom, 0f);
+                        GL.TexCoord2(uvBL.x, uvBL.y); GL.Vertex3(gx, gyBottom, 0f);
+                        penX += ci.advance;
+                    }
+                    GL.End();
+                    GL.PopMatrix();
+
+                    tex = new Texture2D(rtSize, rtSize, TextureFormat.RGBA32, false);
+                    tex.ReadPixels(new Rect(0, 0, rtSize, rtSize), 0, 0);
+                    tex.Apply();
+                }
+                finally
+                {
+                    // VR port: restore RenderTexture.active even on failure. The GL-blit
+                    // path runs inside DaggerfallUI's IMGUI pass; if active were left on
+                    // this (released) temp RT, subsequent eye-camera rendering would hit
+                    // undefined targets — the same global-state leak class guarded in
+                    // DaggerfallUI.OnGUI.
+                    RenderTexture.active = prev;
+                    RenderTexture.ReleaseTemporary(rt);
+                }
 
                 labelTexCache[cacheKey] = tex;
                 Debug.Log("[DFUQuest3] VRKeyboard baked label '" + label + "' (" + valid + "/" + label.Length + " glyphs, adv=" + totalAdv + ")");

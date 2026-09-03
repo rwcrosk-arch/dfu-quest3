@@ -415,6 +415,33 @@ namespace DaggerfallWorkshop.Game.Serialization
             else
                 path = GetSaveFolder(key);
 
+            // MENU-TIME LOAD DEFERRAL (VR port):
+            // The LoadGame coroutine resolves PlayerDeath/PlayerMotor/PlayerEntity through
+            // GameManager.PlayerObject, which THROWS when no Player exists — the startup
+            // menu and every post-reset menu. The coroutine would die on its first MoveNext
+            // and the UI would hang on "please wait" forever. Even past that,
+            // stateManager.SerializablePlayer is null in a scene with no world, so the
+            // coroutine silently yield-breaks. A menu-time load therefore MUST enter the
+            // game scene first (so a live player + world exist), THEN apply the save.
+            // Defer: stash the key and load the game scene; VRStartGameBridge completes
+            // the load via CompletePendingMenuLoad() once the player is up.
+            bool haveLivePlayer = false;
+            try
+            {
+                var gmChk = GameManager.Instance;
+                if (gmChk != null && gmChk.PlayerMotor != null)
+                    haveLivePlayer = true;
+            }
+            catch { }
+
+            if (!haveLivePlayer)
+            {
+                pendingMenuLoadKey = key;
+                UnityEngine.SceneManagement.SceneManager.LoadScene(1); // DaggerfallUnityGame
+                DaggerfallUnity.LogMessage("SaveLoadManager.Load: menu context (no live player) — deferring load of key " + key + " to game scene.", true);
+                return;
+            }
+
             // Load game
             loadInProgress = true;
             GameManager.Instance.PauseGame(false);
@@ -422,6 +449,37 @@ namespace DaggerfallWorkshop.Game.Serialization
 
             // Notify
             DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("gameLoaded"));
+        }
+
+        // Pending save key for a load requested from a menu (no live player).
+        // Consumed by VRStartGameBridge once the game scene has a live player.
+        static int pendingMenuLoadKey = -1;
+        static bool pendingMenuLoadValid = false;
+
+        /// <summary>
+        /// True while a menu-initiated load is waiting for the game scene to come up.
+        /// </summary>
+        public static bool HasPendingMenuLoad
+        {
+            get { return pendingMenuLoadValid; }
+        }
+
+        /// <summary>
+        /// Completes a menu-initiated load once the game scene is live. Called by the
+        /// VR start-game bridge after the player exists. Safe to call anytime; no-ops
+        /// when no deferred load is pending.
+        /// </summary>
+        public static void CompletePendingMenuLoad()
+        {
+            if (!pendingMenuLoadValid)
+                return;
+
+            int key = pendingMenuLoadKey;
+            pendingMenuLoadValid = false;
+            pendingMenuLoadKey = -1;
+
+            DaggerfallUnity.LogMessage(string.Format("SaveLoadManager: completing deferred menu load of key {0}.", key));
+            Instance.Load(key);
         }
 
         public void Load(string characterName, string saveName)

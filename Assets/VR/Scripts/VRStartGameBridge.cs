@@ -38,6 +38,25 @@ namespace DFUQuest3
                 Debug.Log("[DFUQuest3] VRStartGameBridge: spawned guarded StartGameBehaviour in startup scene.");
             }
 
+            // Make a SaveLoadManager exist in the startup scene so the title menu's
+            // Load Game / save-list / switch-char work. DFU ships SaveLoadManager ONLY
+            // in the game scene (verified: both upstream master and this fork's
+            // DaggerfallUnityStartup.unity lack it). At menu time GameManager.Instance
+            // auto-creates a bare GameManager whose get_SaveLoadManager does
+            // FindObjectOfType<SaveLoadManager>() -> null -> THROWS, killing
+            // DaggerfallUnitySaveGameWindow.OnPush before EnumerateSaves() could run:
+            // the menu save list was always empty and switch-char dead, even though the
+            // saves existed on disk (looked like "saves don't persist across restarts").
+            // SaveLoadManager is a self-registering singleton (SetupSingleton in Start),
+            // so a scene instance here makes GameManager.Instance.SaveLoadManager resolve
+            // everywhere, gameplay and menus alike.
+            if (FindObjectOfType<DaggerfallWorkshop.Game.Serialization.SaveLoadManager>() == null)
+            {
+                var slm = new GameObject("VR Startup SaveLoadManager");
+                slm.AddComponent<DaggerfallWorkshop.Game.Serialization.SaveLoadManager>();
+                Debug.Log("[DFUQuest3] VRStartGameBridge: spawned guarded SaveLoadManager in startup scene.");
+            }
+
             // Disable intro cinematics: the StreamingAssets/Movies folder is empty on
             // Android (jar: URI), so the wizard's ANIM*.VID would never finish and the
             // game start would never be triggered — leaving a black screen after
@@ -79,6 +98,18 @@ namespace DFUQuest3
                         // Schedule a one-shot spawn diagnostic after the world settles.
                         diagTimer = 3f;
                     }
+                }
+
+                // Complete a menu-initiated save-game load: the save window deferred the
+                // actual load because the LoadGame coroutine needs a live player (it
+                // resolves PlayerDeath/PlayerMotor/PlayerEntity through PlayerObject,
+                // which throws in menus). Wait until the player + world are ready, then
+                // run the normal Load(key) path here in the game scene.
+                if (DaggerfallWorkshop.Game.Serialization.SaveLoadManager.HasPendingMenuLoad
+                    && GameManagerReady())
+                {
+                    Debug.Log("[DFUQuest3] VRStartGameBridge: completing deferred menu-time save load.");
+                    DaggerfallWorkshop.Game.Serialization.SaveLoadManager.CompletePendingMenuLoad();
                 }
                 if (diagTimer > 0f)
                 {

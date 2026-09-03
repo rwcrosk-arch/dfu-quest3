@@ -135,6 +135,28 @@ in gameplay. This is the active frontier.
   per-eye PPv2 state such that even the effects-menu repair can't recover it.
 - Lesson: TAA is incompatible with OpenXR Multi-pass on this stack. Keep AA off.
 
+## START-MENU MIRROR ARTIFACT — OPEN, COSMETIC (2026-09-04)
+- Symptom: on the Start menu, background shows a reflection of the menu + controller ray
+  (one clean copy below, then infinite regress of the ray), shifting with HMD movement.
+  Menu itself is fine. NON-BLOCKING, documented in DFU_VR_HANDOFF.md.
+- Fixes TRIED and REVERTED (all failed to change it):
+  1. VRKeyboardAlwaysOnTop shader (ZTest Always + Overlay queue): no change => NOT occlusion.
+  2. ClearColor context switch in VRUIOverlay + Clear() honoring the field: no change =>
+     NOT the UI RT clear path.
+  3. Real black quad 4cm behind the panel (Start-window-gated): no effect on mirroring,
+     and it covered the menu / broke the game state => the artifact is NOT behind the
+     panel. Reverted immediately; the revert build was delayed (device kept running the
+     broken build until the next build+install — LESSON: always build+install right after
+     reverting, never let source and device diverge).
+- What DID go in (kept, harmless, correct-by-construction): try/finally
+  RenderTexture.active guards in DaggerfallUI.OnGUI and VRKeyboard bake — the
+  active-RT leak class is sealed even if a window draw throws.
+- Current best theory: stereo/render-path feedback (panel displaying a target the eye
+  cameras also write, or per-eye IMGUI timing in Multi-pass). Head-parallax + recursion
+  signature supports this; all UI-texture theories are ruled out.
+- Next probe (not yet run): hide ray+reticle while DaggerfallStartWindow is top; if the
+  regress follows the ray, world-object capture in the leaked path is confirmed.
+
 ## KEYBOARD SAVE-SCREEN BLANK LETTERS — SOLVED (2026-09-02) — WHITE-ON-WHITE, NOT OCCLUSION
 - The prior occlusion theory (save window's dark NativePanel burying letter rows)
   was WRONG: the always-on-top shader (Overlay queue + ZTest Always + ZWrite Off,

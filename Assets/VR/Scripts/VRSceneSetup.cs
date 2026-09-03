@@ -19,8 +19,14 @@ namespace DFUQuest3
             // Always create the setup object; it polls for XR readiness and only
             // builds the rig once OpenXR is actually active (avoids the race where
             // XRSettings.isDeviceActive is false at scene load).
+            // DontDestroyOnLoad: the native boot flow forwards from the startup scene
+            // to the game scene within milliseconds (SceneControl), which can destroy
+            // this object BEFORE OpenXR reports active — killing the WaitForXR coroutine
+            // so the VR rig never builds (black screen: no panel/cameras/keyboard).
+            // Surviving the transition lets BuildRig run in the game scene instead.
             var go = new GameObject("DFUQuest3 VRSceneSetup");
             go.AddComponent<VRSceneSetup>();
+            DontDestroyOnLoad(go);
         }
 
         void Awake()

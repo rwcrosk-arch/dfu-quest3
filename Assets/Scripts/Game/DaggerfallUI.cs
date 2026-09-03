@@ -492,30 +492,42 @@ namespace DaggerfallWorkshop.Game
             if (Event.current.type == EventType.Repaint)
             {
                 RenderTexture oldRT = null;
+                bool redirected = false;
                 if (customRenderTarget)
                 {
                     oldRT = RenderTexture.active;
                     RenderTexture.active = customRenderTarget.TargetTexture;
                     customRenderTarget.Clear();
+                    redirected = true;
                 }
 
-                // A docked large HUD changes viewport area
-                // This can result in bottom part of display becoming stale (i.e. blank or filled with garbage) while in overlapping UI
-                // When using a large HUD, always repaint HUD before main window
-                // This generally matches classes where small windows (e.g. spellbook, pause) do not clear large HUD and large windows overlap it completely
-                // Repainting large HUD whether docked or not for consistency
-                if (dfHUD != null && DaggerfallUnity.Settings.LargeHUD)
-                    dfHUD.Draw();
-
-                // Draw top window
-                if (uiManager.TopWindow != null)
+                try
                 {
-                    uiManager.TopWindow.Draw();
+                    // A docked large HUD changes viewport area
+                    // This can result in bottom part of display becoming stale (i.e. blank or filled with garbage) while in overlapping UI
+                    // When using a large HUD, always repaint HUD before main window
+                    // This generally matches classes where small windows (e.g. spellbook, pause) do not clear large HUD and large windows overlap it completely
+                    // Repainting large HUD whether docked or not for consistency
+                    if (dfHUD != null && DaggerfallUnity.Settings.LargeHUD)
+                        dfHUD.Draw();
+
+                    // Draw top window
+                    if (uiManager.TopWindow != null)
+                    {
+                        uiManager.TopWindow.Draw();
+                    }
                 }
-
-                if (customRenderTarget)
+                finally
                 {
-                    RenderTexture.active = oldRT;
+                    // VR port: restore RenderTexture.active EVEN IF a window draw throws.
+                    // RenderTexture.active is global state; if it stayed on the UI target,
+                    // the EYE CAMERAS would render the world INTO it — the panel would
+                    // then display the eye view containing the panel itself: an infinite
+                    // mirror of the menu + ray that shifts with head movement. On desktop
+                    // a throw here was harmless (next OnGUI restores); in multi-pass XR
+                    // the leaked redirect is visible as recursive reflections.
+                    if (redirected)
+                        RenderTexture.active = oldRT;
                 }
             }
         }
