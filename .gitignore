@@ -54,6 +54,7 @@ DFU_VR_ARCHITECTURE.md
 DFU_VR_HANDOFF.md
 DFU_VR_TODO.md
 DFU_WINDOW_CATALOG.md
+DFU_VR_RESEARCH_COMFORT.md
 
 # VR fork: build/IDE/editor machine artifacts (contain local paths; never commit)
 .utmp/
