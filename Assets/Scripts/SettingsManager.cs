@@ -85,6 +85,7 @@ namespace DaggerfallWorkshop
         const string sectionStartup = "Startup";
         const string sectionExperimental = "Experimental";
         const string sectionEnhancements = "Enhancements";
+        const string sectionVR = "VR";
 
         FileIniDataParser iniParser = new FileIniDataParser();
         IniData defaultIniData = null;
@@ -348,6 +349,15 @@ namespace DaggerfallWorkshop
         public bool BowLeftHandWithSwitching { get; set; }
         public int LoiterLimitInHours { get; set; }
 
+        // [VR] — Quest 3 VR port settings (DFUQuest3 fork)
+        // Vertical look comfort: right-stick pitch is nauseogenic in VR (tilts the
+        // horizon; head tracking already covers vertical look), so the comfort default
+        // is DISABLED. See DFU_VR_RESEARCH_COMFORT.md for the evidence base.
+        public bool VRVerticalLookEnabled { get; set; } = false;
+        public int VRPitchMode { get; set; } = 0;        // 0=Off, 1=Snap 15, 2=Snap 30, 3=Smooth
+        public int VRPitchSpeed { get; set; } = 30;      // smooth mode, degrees per second
+        public int VRPitchLimit { get; set; } = 60;      // clamp in degrees (applies always)
+
         #endregion
 
         #region Public Methods
@@ -582,6 +592,13 @@ namespace DaggerfallWorkshop
             GuildQuestListBox = GetBool(sectionEnhancements, "GuildQuestListBox");
             BowLeftHandWithSwitching = GetBool(sectionEnhancements, "BowLeftHandWithSwitching");
             LoiterLimitInHours = GetInt(sectionEnhancements, "LoiterLimitInHours");
+
+            // [VR] — comfort defaults live here: vertical look DISABLED by default
+            // (head tracking covers vertical look; stick pitch is the nauseogenic axis).
+            VRVerticalLookEnabled = GetBool(sectionVR, "VRVerticalLookEnabled");
+            VRPitchMode = GetInt(sectionVR, "VRPitchMode", 0, 3);
+            VRPitchSpeed = GetInt(sectionVR, "VRPitchSpeed", 5, 120);
+            VRPitchLimit = GetInt(sectionVR, "VRPitchLimit", 30, 90);
         }
 
         /// <summary>
@@ -777,6 +794,12 @@ namespace DaggerfallWorkshop
             SetBool(sectionEnhancements, "GuildQuestListBox", GuildQuestListBox);
             SetBool(sectionEnhancements, "BowLeftHandWithSwitching", BowLeftHandWithSwitching);
             SetInt(sectionEnhancements, "LoiterLimitInHours", LoiterLimitInHours);
+
+            // [VR]
+            SetBool(sectionVR, "VRVerticalLookEnabled", VRVerticalLookEnabled);
+            SetInt(sectionVR, "VRPitchMode", VRPitchMode);
+            SetInt(sectionVR, "VRPitchSpeed", VRPitchSpeed);
+            SetInt(sectionVR, "VRPitchLimit", VRPitchLimit);
 
             // Write settings to persistent file
             WriteSettingsFile();

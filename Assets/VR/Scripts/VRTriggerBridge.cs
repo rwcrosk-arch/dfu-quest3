@@ -17,6 +17,12 @@ namespace DFUQuest3
     {
         bool lastTrigger;
 
+        // Snap-pitch state (see the pitch branch below): next allowed snap time and the
+        // deadzone a snap direction must exceed. Larger than the smooth deadzone (0.15)
+        // per the comfort research (predictable, deliberate snaps; Meta guidance).
+        float nextSnapTime;
+        const float snapDeadzone = 0.25f;
+
         // Self-wire at runtime so VRSceneSetup.cs (and VRUIOverlay.cs) stay untouched.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
@@ -174,7 +180,6 @@ namespace DFUQuest3
                     }
 
                     float turnSpeed = 120f; // degrees per second (yaw)
-                    float pitchSpeed = 60f;  // degrees per second (pitch)
 
                     if (yawTarget != null)
                     {
@@ -203,8 +208,68 @@ namespace DFUQuest3
                     catch { }
                     if (pitch != null)
                     {
-                        // Pitch around the pitch node's local right axis (look up/down).
-                        pitch.Rotate(-turnStick.y * pitchSpeed * Time.unscaledDeltaTime, 0f, 0f, Space.Self);
+                        // Comfort: right-stick pitch is DISABLED by default (head tracking
+                        // covers vertical look; stick pitch tilts the horizon — the most
+                        // nauseogenic motion class in VR). Settings: [VR] section, edited
+                        // from the in-game VR Comfort settings page. Evidence base and
+                        // design: DFU_VR_RESEARCH_COMFORT.md.
+                        bool enabled = false;
+                        int mode = 0;      // 0=Off, 1=Snap 15, 2=Snap 30, 3=Smooth
+                        int speedDeg = 30; // smooth mode, degrees per second
+                        int limitDeg = 60; // clamp, degrees — applies in EVERY mode (bugfix)
+                        try
+                        {
+                            var settings = DaggerfallWorkshop.DaggerfallUnity.Settings;
+                            enabled = settings.VRVerticalLookEnabled;
+                            mode = Mathf.Clamp(settings.VRPitchMode, 0, 3);
+                            speedDeg = Mathf.Clamp(settings.VRPitchSpeed, 5, 120);
+                            limitDeg = Mathf.Clamp(settings.VRPitchLimit, 30, 90);
+                        }
+                        catch { }
+
+                        // Current pitch angle around the node's local X axis (Unity pitch
+                        // wraps to ±180 once past straight down; normalize to ±90 range).
+                        float currentX = pitch.localEulerAngles.x;
+                        if (currentX > 180f) currentX -= 360f;
+
+                        // BUGFIX (was always broken): clamp BEFORE applying any pitch.
+                        // This node was historically unclamped — the view could pitch past
+                        // the horizon until upside down (nausea + broken world/UI
+                        // orientation). Vanilla DFU clamps mouse-look pitch to ±90.
+                        float headroom = limitDeg - Mathf.Abs(currentX);
+
+                        if (enabled && headroom > 0f)
+                        {
+                            if (mode == 1 || mode == 2)
+                            {
+                                // Snap pitch: fixed step per direction with a short
+                                // cooldown (discrete motion cuts VR sickness ~40-50% vs
+                                // continuous — Farmani & Teather 2020; Meta quantized-
+                                // rotation guidance). Step size from the mode.
+                                float stepDeg = (mode == 1) ? 15f : 30f;
+                                float cooldown = 0.25f;
+                                if (Time.unscaledTime >= nextSnapTime &&
+                                    Mathf.Abs(turnStick.y) > snapDeadzone)
+                                {
+                                    // Stick Y>0 in DFU input convention pitches the view
+                                    // DOWN with -y; keep sign consistent with smooth path.
+                                    float direction = -Mathf.Sign(turnStick.y);
+                                    float applied = Mathf.Min(stepDeg, headroom) * direction;
+                                    pitch.Rotate(applied, 0f, 0f, Space.Self);
+                                    nextSnapTime = Time.unscaledTime + cooldown;
+                                }
+                            }
+                            else if (mode == 3)
+                            {
+                                // Smooth pitch: damped speed (slow default per Meta), no
+                                // ease-out spike, hard-clamped by headroom.
+                                float applied = -turnStick.y * speedDeg * Time.unscaledDeltaTime;
+                                if (Mathf.Abs(applied) > headroom)
+                                    applied = Mathf.Sign(applied) * headroom;
+                                pitch.Rotate(applied, 0f, 0f, Space.Self);
+                            }
+                            // mode == 0 with enabled==true: treated as disabled.
+                        }
                     }
                 }
 
