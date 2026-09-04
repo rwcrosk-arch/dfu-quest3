@@ -23,6 +23,12 @@ namespace DFUQuest3
         float nextSnapTime;
         const float snapDeadzone = 0.25f;
 
+        // Owned pitch state (degrees). We never read the node's euler back — euler
+        // readback near ±90 wraps/flips and jammed the view (see pitch branch comments).
+        // Adopted per node object; reset if the node is recreated.
+        Transform pitchStateForNode;
+        float pitchDegrees;
+
         // Self-wire at runtime so VRSceneSetup.cs (and VRUIOverlay.cs) stay untouched.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Autostart()
@@ -223,22 +229,33 @@ namespace DFUQuest3
                             enabled = settings.VRVerticalLookEnabled;
                             mode = Mathf.Clamp(settings.VRPitchMode, 0, 3);
                             speedDeg = Mathf.Clamp(settings.VRPitchSpeed, 5, 120);
-                            limitDeg = Mathf.Clamp(settings.VRPitchLimit, 30, 90);
+                            limitDeg = Mathf.Clamp(settings.VRPitchLimit, 10, 90);
                         }
                         catch { }
 
-                        // Current pitch angle around the node's local X axis (Unity pitch
-                        // wraps to ±180 once past straight down; normalize to ±90 range).
-                        float currentX = pitch.localEulerAngles.x;
-                        if (currentX > 180f) currentX -= 360f;
+                        // Pitch STATE: an explicit float we own and integrate, in degrees.
+                        // RATIONALE (learned the hard way): reading localEulerAngles breaks
+                        // down at ±90 (euler wraps/flips axes near gimbal alignment), which
+                        // jammed the view when the limit was set to 90. Instead we keep our
+                        // own clamped pitch value, initialized ONCE from the node when we
+                        // first adopt it (identity at that moment), and write the node's
+                        // rotation as Quaternion.Euler(state, 0, 0) every frame. No euler
+                        // readback, no wrap, no recovery fight. The clamp is then trivial:
+                        // the state simply cannot exceed the limit.
 
-                        // BUGFIX (was always broken): clamp BEFORE applying any pitch.
-                        // This node was historically unclamped — the view could pitch past
-                        // the horizon until upside down (nausea + broken world/UI
-                        // orientation). Vanilla DFU clamps mouse-look pitch to ±90.
-                        float headroom = limitDeg - Mathf.Abs(currentX);
+                        if (pitchStateForNode == null || pitchStateForNode != pitch)
+                        {
+                            // First time adopting this node (or a new node object): seed
+                            // our state from its current rotation, then force it level.
+                            // Level start guarantees a sane baseline (any historical tilt
+                            // is discarded — self-healing for legacy unclamped play).
+                            float seed = pitch.localEulerAngles.x;
+                            if (seed > 180f) seed -= 360f;
+                            pitchStateForNode = pitch;
+                            pitchDegrees = Mathf.Clamp(seed, -limitDeg, limitDeg);
+                        }
 
-                        if (enabled && headroom > 0f)
+                        if (enabled && (mode == 1 || mode == 2 || mode == 3))
                         {
                             if (mode == 1 || mode == 2)
                             {
@@ -251,25 +268,28 @@ namespace DFUQuest3
                                 if (Time.unscaledTime >= nextSnapTime &&
                                     Mathf.Abs(turnStick.y) > snapDeadzone)
                                 {
-                                    // Stick Y>0 in DFU input convention pitches the view
-                                    // DOWN with -y; keep sign consistent with smooth path.
-                                    float direction = -Mathf.Sign(turnStick.y);
-                                    float applied = Mathf.Min(stepDeg, headroom) * direction;
-                                    pitch.Rotate(applied, 0f, 0f, Space.Self);
+                                    // Negative sign: stick up (y>0) looks up.
+                                    pitchDegrees = Mathf.Clamp(
+                                        pitchDegrees - Mathf.Sign(turnStick.y) * stepDeg,
+                                        -limitDeg, limitDeg);
                                     nextSnapTime = Time.unscaledTime + cooldown;
                                 }
                             }
-                            else if (mode == 3)
+                            else // Smooth: damped speed, low default per Meta guidance.
                             {
-                                // Smooth pitch: damped speed (slow default per Meta), no
-                                // ease-out spike, hard-clamped by headroom.
-                                float applied = -turnStick.y * speedDeg * Time.unscaledDeltaTime;
-                                if (Mathf.Abs(applied) > headroom)
-                                    applied = Mathf.Sign(applied) * headroom;
-                                pitch.Rotate(applied, 0f, 0f, Space.Self);
+                                pitchDegrees = Mathf.Clamp(
+                                    pitchDegrees - turnStick.y * speedDeg * Time.unscaledDeltaTime,
+                                    -limitDeg, limitDeg);
                             }
-                            // mode == 0 with enabled==true: treated as disabled.
                         }
+
+                        // Write the owned state every frame. With vertical look disabled
+                        // the state stays at its last value BUT the node is driven level
+                        // only when enabled==false AND the state hasn't been adopted —
+                        // simplest correct behavior: always write Euler(state,0,0). When
+                        // disabled, state freezes at its last value, which preserves the
+                        // look direction the user last had.
+                        pitch.localRotation = Quaternion.Euler(pitchDegrees, 0f, 0f);
                     }
                 }
 

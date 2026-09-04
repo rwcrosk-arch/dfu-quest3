@@ -353,10 +353,11 @@ namespace DaggerfallWorkshop
         // Vertical look comfort: right-stick pitch is nauseogenic in VR (tilts the
         // horizon; head tracking already covers vertical look), so the comfort default
         // is DISABLED. See DFU_VR_RESEARCH_COMFORT.md for the evidence base.
+        // Defaults per Ross (2026-09-04): when enabled, Smooth mode at 30 deg limit.
         public bool VRVerticalLookEnabled { get; set; } = false;
-        public int VRPitchMode { get; set; } = 0;        // 0=Off, 1=Snap 15, 2=Snap 30, 3=Smooth
+        public int VRPitchMode { get; set; } = 3;        // 0=Off, 1=Snap 15, 2=Snap 30, 3=Smooth
         public int VRPitchSpeed { get; set; } = 30;      // smooth mode, degrees per second
-        public int VRPitchLimit { get; set; } = 60;      // clamp in degrees (applies always)
+        public int VRPitchLimit { get; set; } = 30;      // clamp in degrees (applies always)
 
         #endregion
 
@@ -595,10 +596,24 @@ namespace DaggerfallWorkshop
 
             // [VR] — comfort defaults live here: vertical look DISABLED by default
             // (head tracking covers vertical look; stick pitch is the nauseogenic axis).
-            VRVerticalLookEnabled = GetBool(sectionVR, "VRVerticalLookEnabled");
-            VRPitchMode = GetInt(sectionVR, "VRPitchMode", 0, 3);
-            VRPitchSpeed = GetInt(sectionVR, "VRPitchSpeed", 5, 120);
-            VRPitchLimit = GetInt(sectionVR, "VRPitchLimit", 30, 90);
+            // Read keys only when they EXIST: property initializers carry the defaults
+            // (checkbox off; Smooth mode; 30 deg limit) for fresh settings.ini files,
+            // while existing files keep whatever the user saved.
+            try
+            {
+                if (userIniData != null && userIniData.Sections.ContainsSection(sectionVR))
+                {
+                    if (userIniData[sectionVR].ContainsKey("VRVerticalLookEnabled"))
+                        VRVerticalLookEnabled = GetBool(sectionVR, "VRVerticalLookEnabled");
+                    if (userIniData[sectionVR].ContainsKey("VRPitchMode"))
+                        VRPitchMode = GetInt(sectionVR, "VRPitchMode", 0, 3);
+                    if (userIniData[sectionVR].ContainsKey("VRPitchSpeed"))
+                        VRPitchSpeed = GetInt(sectionVR, "VRPitchSpeed", 5, 120);
+                    if (userIniData[sectionVR].ContainsKey("VRPitchLimit"))
+                        VRPitchLimit = GetInt(sectionVR, "VRPitchLimit", 10, 90);
+                }
+            }
+            catch { }
         }
 
         /// <summary>
@@ -922,7 +937,17 @@ namespace DaggerfallWorkshop
             try
             {
                 if (userIniData != null)
+                {
+                    // VR port: create the section on demand. New fork sections (e.g. [VR])
+                    // don't exist in older on-device settings.ini files; the indexer's
+                    // setter throws when the section is missing, which previously aborted
+                    // SaveSettings() mid-write and broke the calling UI stack (clicks
+                    // died after touching a new setting). Sections.AddSection is a no-op
+                    // if the section already exists.
+                    if (!userIniData.Sections.ContainsSection(sectionName))
+                        userIniData.Sections.AddSection(sectionName);
                     userIniData[sectionName][valueName] = valueData;
+                }
                 else
                     throw new Exception();
             }
