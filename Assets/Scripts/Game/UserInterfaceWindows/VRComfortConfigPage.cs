@@ -41,8 +41,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             verticalLookCheckbox = AddCheckbox(parent, "Right-stick vertical look", ref pos);
             verticalLookCheckbox.OnToggleState += VerticalLookCheckbox_OnToggleState;
 
-            // Pitch mode: Off / Snap 15 / Snap 30 / Smooth
-            string[] pitchModes = new string[] { "Off", "Snap 15", "Snap 30", "Smooth" };
+            // Pitch mode: Snap 15 / Snap 30 / Smooth (no "Off" entry — the master
+            // checkbox above is the single source of truth for on/off)
+            string[] pitchModes = new string[] { "Snap 15", "Snap 30", "Smooth" };
             pitchModeSlider = AddSlider(parent, "Pitch mode", pitchModes.Length, ref pos);
             pitchModeSlider.OnScroll += PitchModeSlider_OnScroll;
             pitchModeSlider.SetIndicator(pitchModes, DaggerfallUnity.Settings.VRPitchMode);
@@ -84,7 +85,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public override void ReadSettings()
         {
             verticalLookCheckbox.IsChecked = DaggerfallUnity.Settings.VRVerticalLookEnabled;
-            pitchModeSlider.ScrollIndex = DaggerfallUnity.Settings.VRPitchMode;
+            // Slider index = VRPitchMode - 1 (stored mode 1=Snap15, 2=Snap30, 3=Smooth;
+            // 0=Off is expressed by the checkbox, not the slider).
+            pitchModeSlider.ScrollIndex = Mathf.Clamp(DaggerfallUnity.Settings.VRPitchMode - 1, 0, 2);
             pitchSpeedSlider.ScrollIndex = SpeedIndex(DaggerfallUnity.Settings.VRPitchSpeed);
             pitchLimitSlider.ScrollIndex = LimitIndex(DaggerfallUnity.Settings.VRPitchLimit);
         }
@@ -113,7 +116,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         private void PitchModeSlider_OnScroll()
         {
-            DaggerfallUnity.Settings.VRPitchMode = pitchModeSlider.ScrollIndex;
+            // Slider index 0/1/2 -> stored mode 1/2/3 (Snap 15/Snap 30/Smooth).
+            DaggerfallUnity.Settings.VRPitchMode = Mathf.Clamp(pitchModeSlider.ScrollIndex + 1, 1, 3);
         }
 
         private void PitchSpeedSlider_OnScroll()
