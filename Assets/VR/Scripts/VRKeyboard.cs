@@ -22,8 +22,9 @@ namespace DFUQuest3
             "asdfghjkl",
             "zxcvbnm",
         };
-        const float KeySize = 0.09f;   // key quad size in meters (bigger for readability)
-        const float KeyGap = 0.012f;
+        const float KeySize = 0.075f;  // key quad size in meters (shrunk: keyboard was
+                                       // overlapping the menu panel in gameplay-land)
+        const float KeyGap = 0.009f;   // tighter spacing to match the smaller keys
         const float BoardScale = 1.0f;
 
         GameObject board;
@@ -338,14 +339,18 @@ namespace DFUQuest3
             }
 
             // Position the keyboard BELOW the menu panel (which sits ~2m ahead at eye
-            // level) so the user looks DOWN at it while typing. Keep YAW-ONLY rotation
-            // (facing forward) — a LookRotation tilt made the board edge-on and invisible.
+            // level, bottom edge ~0.675m below eye) so the user looks DOWN at it while
+            // typing without it overlapping the menu. Keep YAW-ONLY rotation (a
+            // LookRotation tilt made the board edge-on and invisible).
+            // Dropped to 0.80m and pulled to 0.9m: the shrunken board (0.83m wide) now
+            // clears the panel's bottom edge entirely; closer distance keeps the angular
+            // key size nearly identical to the old larger keys at 1.0m.
             Vector3 fwd = headRot * Vector3.forward;
             fwd.y = 0f;
             if (fwd.sqrMagnitude < 0.001f) fwd = Vector3.forward;
             fwd.Normalize();
-            Vector3 pos = headPos + fwd * 1.0f;
-            pos.y = headPos.y - 0.65f; // below eye level (a bit lower)
+            Vector3 pos = headPos + fwd * 0.9f;
+            pos.y = headPos.y - 0.80f; // below eye level (clears the menu panel bottom)
             Quaternion rot = Quaternion.Euler(0, headRot.eulerAngles.y, 0);
             board.transform.SetPositionAndRotation(pos, rot);
 
