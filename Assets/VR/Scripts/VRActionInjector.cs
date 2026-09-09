@@ -111,10 +111,14 @@ namespace DFUQuest3
             {
                 im.AddAction(InputManager.Actions.Jump);
             }
-            // Left trigger -> Recast/cast the last spell. CALL DIRECTLY: EntityEffectManager
-            // checks ActionStarted(RecastSpell) at order 0 (before this injector), so an
-            // injected action is never seen as "started". Replicate its recast logic
-            // (line 257): need a last spell, not playing a cast anim, and a spellbook.
+            // Left trigger -> RECAST the last spell, one press (ready + fire). CALL
+            // DIRECTLY: EntityEffectManager checks ActionStarted(RecastSpell) at order 0
+            // (before this injector), so an injected action is never seen as "started";
+            // and the fire step needs ActivateCenterObject which has the same problem.
+            // Compress the desktop two-step (ready, then activate) into one trigger:
+            // SetReadySpell(LastSpell) + CastReadySpell(). CastReadySpell runs the
+            // touch-range check itself (HUD feedback when no target) and plays the
+            // cast animation via the normal release-frame path.
             if (Pressed(VRActionBinder.TriggerLeftAction))
             {
                 var eem = DaggerfallWorkshop.Game.GameManager.Instance?.PlayerEffectManager;
@@ -122,12 +126,13 @@ namespace DFUQuest3
                     !DaggerfallWorkshop.Game.GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
                 {
                     eem.SetReadySpell(eem.LastSpell);
-                    Debug.Log("[DFUQuest3] LeftTrigger -> SetReadySpell (direct cast)");
+                    eem.CastReadySpell();
+                    Debug.Log("[DFUQuest3] LeftTrigger -> recast last spell (ready + fire)");
                 }
                 else
                 {
                     im.AddAction(InputManager.Actions.RecastSpell);
-                    Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (fallback) — no last spell: ready one from the spellbook");
+                    Debug.Log("[DFUQuest3] LeftTrigger -> (fallback) no last spell: ready one from the spellbook");
                 }
             }
             // Right trigger (gameplay) -> cast the ready spell. DIRECT CALL: the desktop
