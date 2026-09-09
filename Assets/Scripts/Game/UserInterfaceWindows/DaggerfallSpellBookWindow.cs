@@ -66,6 +66,16 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         protected Panel spellElementIconPanel;
         Panel[] spellEffectPanels;
 
+        // VR port: LEFT TRIGGER is the select/arm action for this window (no keyboard
+        // Enter exists in VR). Called by VRActionInjector when the trigger is pressed
+        // while this window is topmost: arms the highlighted spell as both the ready
+        // spell and LastSpell (so Ltrig casts it in the world, per the VR spell flow).
+        public void UseSelectedSpell()
+        {
+            if (IsSetup && spellsListBox != null)
+                spellsListBox.UseSelectedItem();
+        }
+
         protected Button exitButton;
         protected Button deleteButton;
         protected Button buyButton;
@@ -358,6 +368,18 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             spellsListBox.OnMouseScrollUp += SpellsListBox_OnMouseScroll;
             spellsListBox.AlwaysAcceptKeyboardInput = true;
             mainPanel.Components.Add(spellsListBox);
+
+            // VR port: hint above the spells list — in VR the LEFT TRIGGER is the
+            // select/arm action for this window (there is no keyboard Enter in VR),
+            // and Ltrig also casts the armed spell back in the world.
+            if (!buyMode)
+            {
+                DaggerfallUI.AddTextLabel(
+                    DaggerfallUI.DefaultFont,
+                    new Vector2(spellsListBoxRect.x, spellsListBoxRect.y - 8),
+                    "Left Trigger: select spell to cast",
+                    mainPanel);
+            }
 
             // Spells list scroller
             spellsListScrollBar = new VerticalScrollBar();
@@ -781,7 +803,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             EntityEffectManager playerEffectManager = GameManager.Instance.PlayerEffectManager;
             if (playerEffectManager)
             {
-                playerEffectManager.SetReadySpell(new EntityEffectBundle(spellSettings, GameManager.Instance.PlayerEntityBehaviour), noSpellPointCost);
+                EntityEffectBundle readyBundle = new EntityEffectBundle(spellSettings, GameManager.Instance.PlayerEntityBehaviour);
+                playerEffectManager.SetReadySpell(readyBundle, noSpellPointCost);
+
+                // VR port: also arm it as LastSpell so the LEFT TRIGGER casts it. The VR
+                // spell flow is Ltrig-only: B opens the spellbook, Ltrig selects/arms the
+                // highlighted spell, Ltrig casts in the world. Upstream lastSpell is set
+                // only after a successful cast, which would force one Rtrig cast first.
+                playerEffectManager.LastSpell = readyBundle;
+
                 DaggerfallUI.Instance.PopToHUD();
             }
         }

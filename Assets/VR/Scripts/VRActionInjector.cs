@@ -10,6 +10,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using DaggerfallWorkshop.Game;
+using DaggerfallWorkshop.Game.UserInterfaceWindows;
 
 namespace DFUQuest3
 {
@@ -111,28 +112,36 @@ namespace DFUQuest3
             {
                 im.AddAction(InputManager.Actions.Jump);
             }
-            // Left trigger -> RECAST the last spell, one press (ready + fire). CALL
-            // DIRECTLY: EntityEffectManager checks ActionStarted(RecastSpell) at order 0
-            // (before this injector), so an injected action is never seen as "started";
-            // and the fire step needs ActivateCenterObject which has the same problem.
-            // Compress the desktop two-step (ready, then activate) into one trigger:
-            // SetReadySpell(LastSpell) + CastReadySpell(). CastReadySpell runs the
-            // touch-range check itself (HUD feedback when no target) and plays the
-            // cast animation via the normal release-frame path.
+            // Left trigger -> context-sensitive:
+            //   - Spellbook open: SELECT/ARM the highlighted spell (no keyboard Enter in
+            //     VR). Arming also mirrors the spell into LastSpell so Ltrig casts it
+            //     once back in the world.
+            //   - Otherwise: RECAST the last spell, one press (ready + fire). Both call
+            //     directly: EntityEffectManager's ActionStarted(RecastSpell) read happens
+            //     at order 0 before this injector, so injected actions are never seen.
             if (Pressed(VRActionBinder.TriggerLeftAction))
             {
-                var eem = DaggerfallWorkshop.Game.GameManager.Instance?.PlayerEffectManager;
-                if (eem != null && eem.LastSpell != null &&
-                    !DaggerfallWorkshop.Game.GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
+                var topWindow = DaggerfallUI.UIManager?.TopWindow;
+                var spellBook = topWindow as DaggerfallSpellBookWindow;
+                if (spellBook != null)
                 {
-                    eem.SetReadySpell(eem.LastSpell);
-                    eem.CastReadySpell();
-                    Debug.Log("[DFUQuest3] LeftTrigger -> recast last spell (ready + fire)");
+                    spellBook.UseSelectedSpell();
+                    Debug.Log("[DFUQuest3] LeftTrigger -> spellbook: arm selected spell");
                 }
                 else
                 {
-                    im.AddAction(InputManager.Actions.RecastSpell);
-                    Debug.Log("[DFUQuest3] LeftTrigger -> (fallback) no last spell: ready one from the spellbook");
+                    var eem = DaggerfallWorkshop.Game.GameManager.Instance?.PlayerEffectManager;
+                    if (eem != null && eem.LastSpell != null &&
+                        !DaggerfallWorkshop.Game.GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
+                    {
+                        eem.SetReadySpell(eem.LastSpell);
+                        eem.CastReadySpell();
+                        Debug.Log("[DFUQuest3] LeftTrigger -> recast last spell (ready + fire)");
+                    }
+                    else
+                    {
+                        Debug.Log("[DFUQuest3] LeftTrigger -> no last spell: open the spellbook (B) and arm one");
+                    }
                 }
             }
             // Right trigger (gameplay) -> cast the ready spell. DIRECT CALL: the desktop

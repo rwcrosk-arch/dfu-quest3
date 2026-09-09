@@ -102,6 +102,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects
         public EntityEffectBundle LastSpell
         {
             get { return lastSpell; }
+            // VR port: setter so arming a spell from the spellbook (VR flow: Ltrig
+            // selects in the spellbook, Ltrig casts) makes the armed spell recastable
+            // via Ltrig without requiring a successful cast first. Upstream lastSpell
+            // is only set after a cast.
+            set { lastSpell = value; }
         }
 
         public DaggerfallEntityBehaviour EntityBehaviour
