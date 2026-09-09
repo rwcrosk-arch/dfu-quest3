@@ -127,8 +127,27 @@ namespace DFUQuest3
                 else
                 {
                     im.AddAction(InputManager.Actions.RecastSpell);
-                    Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (fallback)");
+                    Debug.Log("[DFUQuest3] LeftTrigger -> RecastSpell (fallback) — no last spell: ready one from the spellbook");
                 }
+            }
+            // Right trigger (gameplay) -> cast the ready spell. DIRECT CALL: the desktop
+            // flow fires a ready spell via ActionStarted(ActivateCenterObject), but that
+            // action is injected by VRTriggerBridge at order 0 while EntityEffectManager
+            // reads it at its own order-0 Update — ordering between them is not
+            // guaranteed, and CastReadySpell() is public. Calling it directly makes
+            // Rtrig = "fire ready spell" deterministic for every spell target type
+            // (Self/ByTouch/ByTarget), including the touch-range feedback.
+            if (Pressed(VRActionBinder.TriggerAction))
+            {
+                var eemCast = DaggerfallWorkshop.Game.GameManager.Instance?.PlayerEffectManager;
+                if (eemCast != null && eemCast.HasReadySpell &&
+                    !DaggerfallWorkshop.Game.GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
+                {
+                    eemCast.CastReadySpell();
+                    Debug.Log("[DFUQuest3] RightTrigger -> CastReadySpell (direct)");
+                }
+                // No ready spell: the click path (VRTriggerBridge) already handles
+                // ActivateCenterObject for doors/pickups/menu clicks — don't spam.
             }
             // Left thumbstick click -> Crouch.
             if (Pressed(VRActionBinder.StickClickLeftAction))

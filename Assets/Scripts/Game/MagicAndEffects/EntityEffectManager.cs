@@ -416,7 +416,13 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects
                 Vector3 aimDirection = GameManager.Instance.MainCamera.transform.forward;
                 if (DaggerfallMissile.GetEntityTargetInTouchRange(aimPosition, aimDirection, DaggerfallMissile.GetLayerMask(true)) == null)
                 {
-                    //Debug.Log("Target entity not in range for touch spell.");
+                    // VR port: silent failure was indistinguishable from a bug (nothing
+                    // happens on cast). Give explicit feedback: touch spells need an
+                    // enemy entity within 3m, looked-at. The aim vector is the real head
+                    // (MainCamera is driven by TrackedPoseDriver on the rig).
+                    DaggerfallUI.AddHUDText("No enemy in touch range", 1.5f);
+                    Debug.LogFormat("[DFUQuest3] Touch spell no target: camPos={0} camFwd={1}",
+                        aimPosition, aimDirection);
                     return;
                 }
             }
