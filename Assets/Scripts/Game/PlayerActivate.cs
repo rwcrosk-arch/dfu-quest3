@@ -316,6 +316,13 @@ namespace DaggerfallWorkshop.Game
                 bool hitSomething = Physics.Raycast(ray, out hit, RayDistance, playerLayerMask);
                 if (hitSomething)
                 {
+                    // VR port: one-line diagnostic per activation press — which object
+                    // the ray actually hit, whether it carries DaggerfallLoot, and the
+                    // hit distance. Needed because corpse looting was reported broken
+                    // in VR while doors activate fine; this pinpoints the failing stage.
+                    Debug.Log($"[DFUQuest3] ACTDIAG hit='{hit.transform.name}' layer={hit.transform.gameObject.layer} " +
+                              $"dist={hit.distance:F2}m loot={(hit.transform.GetComponent<DaggerfallLoot>() != null ? "yes" : "no")} " +
+                              $"rayPos={ray.origin} rayDir={ray.direction}");
                     bool hitBuilding = false;
                     bool buildingUnlocked = false;
                     int buildingLockValue = 0;
