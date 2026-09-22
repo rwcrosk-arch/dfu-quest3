@@ -335,7 +335,17 @@ namespace DFUQuest3
             reticleGO = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             reticleGO.name = "DFU VR Reticle";
             reticleGO.transform.localScale = new Vector3(0.012f, 0.012f, 0.012f);
-            var mat = new Material(Shader.Find("Unlit/Color"));
+            // VR port: reticle + ray use VRRayAlwaysOnTop (ZTest Always, queue above the
+            // Overlay-4000 panels) — with menus promoted to always-on-top, a depth-tested
+            // pointer got buried under both walls and the menu panel. A pointer is UI:
+            // it draws over everything.
+            var reticleShader = Resources.Load<Shader>("VRRayAlwaysOnTop");
+            if (reticleShader == null || !reticleShader.isSupported)
+            {
+                Debug.LogError("[DFUQuest3] VRRayAlwaysOnTop NOT AVAILABLE — reticle/ray stay depth-tested.");
+                reticleShader = Shader.Find("Unlit/Color");
+            }
+            var mat = new Material(reticleShader);
             mat.color = new Color(1f, 1f, 0.4f, 1f); // bright yellow-green, clearly visible
             reticleGO.GetComponent<Renderer>().sharedMaterial = mat;
             reticleGO.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -350,7 +360,11 @@ namespace DFUQuest3
             rayLine.endWidth = 0.001f;
             rayLine.startColor = new Color(1f, 0.5f, 0f, 0.9f);
             rayLine.endColor = new Color(1f, 1f, 0.3f, 0.9f);
-            rayLine.material = new Material(Shader.Find("Unlit/Color"));
+            // Same always-on-top shader as the reticle (vertex colors carry the gradient).
+            var rayShader = Resources.Load<Shader>("VRRayAlwaysOnTop");
+            if (rayShader == null || !rayShader.isSupported)
+                rayShader = Shader.Find("Unlit/Color");
+            rayLine.material = new Material(rayShader);
             rayLine.material.color = Color.white;
             rayLine.useWorldSpace = true;
             DontDestroyOnLoad(rayGO);
