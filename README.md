@@ -20,6 +20,12 @@ existing cameras, input, and UI.
 This build is playable end-to-end: create a character, fight, explore, save, and load.
 It is ready for playtesting — expect rough edges, and see Known Issues below.
 
+**Latest: v0.1.0-beta2 ("Combat & Interaction Overhaul")** — spell casting end-to-end
+(cast/recast on the left trigger), controller-pointed interactions (aim by pointing),
+corpse looting with aim assist, and a UI render stack that keeps the HUD, menus, and
+pointer ray visible over dungeon walls. See the
+[release notes](https://github.com/rwcrosk-arch/dfu-quest3/releases/tag/v0.1.0-beta2).
+
 ## Features
 
 - **Native Quest 3 build** — Unity 6000.0.82f1, IL2CPP/ARM64, Vulkan, OpenXR (multi-pass).
@@ -117,7 +123,7 @@ adb push <path-to-your>/Daggerfall/arena2 \
 ### 2. Install the APK
 
 ```bash
-adb install -r DFU-Quest3VR-beta1.apk
+adb install -r DFU-Quest3VR-beta2.apk
 adb shell monkey -p com.dfworkshop.dfuquest3 -c android.intent.category.LAUNCHER 1
 ```
 
