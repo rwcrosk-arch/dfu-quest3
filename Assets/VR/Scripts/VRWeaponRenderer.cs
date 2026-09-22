@@ -153,6 +153,16 @@ namespace DFUQuest3
             }
             pos += rot * localOffset;
 
+            // VR port: BLOCK STANCE — while VRBlockController.IsBlocking, shift the weapon
+            // quad across the body (left + slightly up) to read as the classic Daggerfall
+            // guard pose (weapon held outwards). The 2D billboard can't truly rotate
+            // sideways, but the lateral displacement + height reads clearly in VR.
+            if (DFUQuest3.VRBlockController.IsBlocking)
+            {
+                Vector3 guardOffset = rot * new Vector3(-0.22f, 0.10f, 0.05f);
+                pos += guardOffset;
+            }
+
             // Billboard toward the camera (weapon sprite is 2D — keep it readable).
             Camera cam = gm.MainCamera != null ? gm.MainCamera : Camera.main;
             if (cam != null)

@@ -38,14 +38,26 @@ namespace DFUQuest3
 
         void Update()
         {
-            IsBlocking = ComputeBlocking();
+            bool now = ComputeBlocking();
+            if (now != IsBlocking)
+            {
+                // Stance transition logging (throttled naturally by the edge) so
+                // block-stance engagement is debuggable from Player.log alone.
+                Debug.Log($"[DFUQuest3] BLOCK STANCE {(now ? "ON" : "OFF")} (grip={gripValue:F2})");
+            }
+            IsBlocking = now;
         }
+
+        float gripValue;
 
         bool ComputeBlocking()
         {
             // Left grip held
             var grip = VRActionBinder.GripLeftAction;
-            if (grip == null || grip.ReadValue<float>() <= 0.5f)
+            if (grip == null)
+                return false;
+            gripValue = grip.ReadValue<float>();
+            if (gripValue <= 0.5f)
                 return false;
 
             var gm = GameManager.Instance;
@@ -96,8 +108,19 @@ namespace DFUQuest3
                 chance += 15f;
             chance = Mathf.Clamp(chance, 0f, 75f);
 
+            // Feedback for BOTH outcomes — a silent block attempt reads as "broken"
+            // (Ross's bat test: rolls failed with zero feedback, system seemed dead).
             if (Random.Range(0f, 100f) >= chance)
+            {
+                // Failed block: soft miss-cue + HUD text with the chance so the player
+                // learns what their skill provides. No fatigue cost on failure.
+                var dfuiFail = DaggerfallUI.Instance;
+                if (dfuiFail != null && dfuiFail.DaggerfallAudioSource != null)
+                    dfuiFail.DaggerfallAudioSource.PlayOneShot(SoundClips.SwingHighPitch, 1f, 0.5f);
+                DaggerfallUI.AddHUDText($"Block failed ({chance:F0}% chance)");
+                Debug.Log($"[DFUQuest3] BLOCK FAIL: {damage} dmg taken (chance {chance:F0}%, skill {skillValue})");
                 return false;
+            }
 
             // Blocked: parry sound + feedback + fatigue cost
             var dfui = DaggerfallUI.Instance;
@@ -108,7 +131,7 @@ namespace DFUQuest3
             }
             DaggerfallUI.AddHUDText($"Blocked! ({chance:F0}% chance)");
             player.DecreaseFatigue((int)fatigueCostPerBlock);
-            Debug.Log($"[DFUQuest3] BLOCK: incoming {damage} dmg negated (chance {chance:F0}%, skill {skillValue})");
+            Debug.Log($"[DFUQuest3] BLOCK SUCCESS: incoming {damage} dmg negated (chance {chance:F0}%, skill {skillValue})");
             return true;
         }
     }
