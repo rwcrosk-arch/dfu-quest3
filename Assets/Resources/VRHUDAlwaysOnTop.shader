@@ -72,7 +72,9 @@ Shader "DFUQuest3/VRHUDAlwaysOnTop"
                 col.a = (keyDist < _Threshold) ? 0.0 : 1.0;
                 return col;
             }
-            ENDHLSLPROGRAM
+            ENDHLSL
         }
     }
+    // Fallback if HLSL fails on a platform
+    Fallback "Unlit/Transparent Cutout"
 }

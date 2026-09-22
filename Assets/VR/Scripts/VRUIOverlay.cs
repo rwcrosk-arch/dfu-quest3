@@ -288,6 +288,10 @@ namespace DFUQuest3
                 // null on device even with AlwaysIncludedShaders registration).
                 // Falls back to the plain chroma-key (depth-tested) if missing.
                 Shader s = Resources.Load<Shader>("VRHUDAlwaysOnTop");
+                if (s == null)
+                    Debug.LogError("[DFUQuest3] VRHUDAlwaysOnTop Resources.Load returned NULL — shader not packaged.");
+                else
+                    Debug.Log($"[DFUQuest3] VRHUDAlwaysOnTop loaded, isSupported={s.isSupported} name='{s.name}'");
                 if (s == null || !s.isSupported)
                 {
                     Debug.LogError("[DFUQuest3] VRHUDAlwaysOnTop NOT AVAILABLE via Resources — falling back to VRUIChromaKey (depth-tested).");
