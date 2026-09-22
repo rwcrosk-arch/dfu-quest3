@@ -64,6 +64,7 @@ namespace DaggerfallWorkshop.Game
         PlayerEnterExit playerEnterExit;        // Example component to enter/exit buildings
         Camera mainCamera;
         int playerLayerMask = 0;
+        float vrDiagTimer;
 
         Transform deferredInteriorDoorOwner;    // Used to defer interior transition after popup message
         StaticDoor deferredInteriorDoor;
@@ -308,8 +309,25 @@ namespace DaggerfallWorkshop.Game
                 }
                 else
                 {
-                    // Ray from camera crosshair position
-                    ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
+                    // VR port: activation ray from the CONTROLLER when a valid pose
+                    // exists (matches the visible pointer), head gaze as fallback.
+                    // Previously this was always the head ray, so controller-pointing
+                    // at doors/corpses/NPCs only worked when the head also faced them.
+                    if (DFUQuest3.VRAim.TryGetRay(out var vrRay))
+                    {
+                        ray = vrRay;
+                        vrDiagTimer -= Time.deltaTime;
+                        if (DFUQuest3.VRAim.LastRayFromController && vrDiagTimer <= 0f)
+                        {
+                            vrDiagTimer = 2f;
+                            Debug.Log($"[DFUQuest3] ACTDIAG aim source: controller ray (fallback would be head)");
+                        }
+                    }
+                    else
+                    {
+                        // Ray from camera crosshair position
+                        ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
+                    }
                 }
 
                 // Test ray against scene
