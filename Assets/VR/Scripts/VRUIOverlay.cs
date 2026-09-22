@@ -283,12 +283,14 @@ namespace DFUQuest3
                 // (not ideal) but the UI remains usable.
                 // VR port: gameplay HUD uses VRHUDAlwaysOnTop — chroma-key transparency
                 // PLUS ZTest Always/Overlay queue so nearby dungeon walls can never
-                // occlude the HUD (a HUD is UI, not world geometry). Falls back to the
-                // plain chroma-key (depth-tested) if the shader is missing.
-                Shader s = Shader.Find("DFUQuest3/VRHUDAlwaysOnTop");
+                // occlude the HUD (a HUD is UI, not world geometry). Loaded via
+                // Resources (guaranteed build inclusion; Shader.Find alone returned
+                // null on device even with AlwaysIncludedShaders registration).
+                // Falls back to the plain chroma-key (depth-tested) if missing.
+                Shader s = Resources.Load<Shader>("VRHUDAlwaysOnTop");
                 if (s == null || !s.isSupported)
                 {
-                    Debug.LogError("[DFUQuest3] VRHUDAlwaysOnTop shader NOT AVAILABLE — falling back to VRUIChromaKey (depth-tested).");
+                    Debug.LogError("[DFUQuest3] VRHUDAlwaysOnTop NOT AVAILABLE via Resources — falling back to VRUIChromaKey (depth-tested).");
                     s = Shader.Find("DFUQuest3/VRUIChromaKey");
                 }
                 if (s == null || !s.isSupported)
