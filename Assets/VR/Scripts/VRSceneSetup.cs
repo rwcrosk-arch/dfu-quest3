@@ -102,6 +102,12 @@ namespace DFUQuest3
             DontDestroyOnLoad(keyboardGO);
             keyboardGO.AddComponent<VRKeyboard>().poseBridge = mcpBridge;
 
+            // VR block controller — hold LEFT GRIP with a melee weapon drawn to block.
+            // EnemyAttack consults VRBlockController.TryBlock before applying melee damage.
+            var blockGO = new GameObject("DFU VR Block Controller");
+            DontDestroyOnLoad(blockGO);
+            blockGO.AddComponent<VRBlockController>();
+
             DontDestroyOnLoad(originGO);
 
             Debug.Log("[DFUQuest3] XR rig instantiated at boot (DFU camera augment).");

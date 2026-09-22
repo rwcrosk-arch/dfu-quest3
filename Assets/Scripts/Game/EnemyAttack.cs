@@ -403,6 +403,18 @@ namespace DaggerfallWorkshop.Game
 
         private void SendDamageToPlayer()
         {
+            // VR port: physical blocking — hold LEFT GRIP with a melee weapon drawn to
+            // block. DFU has no player block at all (verified upstream); this VR-native
+            // roll (weapon skill + shield) negates melee hits on success.
+            // NOTE: SendDamageToPlayer is only reached from ApplyDamageToPlayer (enemy
+            // melee); ranged/spell damage takes other paths, so no ranged check is needed.
+            if (DFUQuest3.VRBlockController.IsBlocking &&
+                DFUQuest3.VRBlockController.Instance != null &&
+                DFUQuest3.VRBlockController.Instance.TryBlock(damage))
+            {
+                return; // hit fully blocked
+            }
+
             GameManager.Instance.PlayerObject.SendMessage("RemoveHealth", damage);
 
             EnemyEntity entity = entityBehaviour.Entity as EnemyEntity;
