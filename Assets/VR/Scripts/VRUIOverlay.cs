@@ -310,7 +310,20 @@ namespace DFUQuest3
             }
             else
             {
-                var mat = new Material(Shader.Find("Unlit/Texture"));
+                // VR port: menus get the same wall-immunity as the HUD — opaque
+                // always-on-top (ZTest Always + Overlay queue), the proven keyboard
+                // shader (its Shader.Find works on device; the shader compiles and is
+                // in AlwaysIncludedShaders). In-world menus in dungeons were occluded
+                // by nearby walls exactly like the HUD was. Fallback: plain Unlit/
+                // Texture (depth-tested) if the shader is somehow missing.
+                var sMenu = Shader.Find("DFUQuest3/VRKeyboardAlwaysOnTop");
+                if (sMenu == null || !sMenu.isSupported)
+                {
+                    Debug.LogError("[DFUQuest3] VRKeyboardAlwaysOnTop NOT AVAILABLE for menu panel — falling back to Unlit/Texture (depth-tested).");
+                    sMenu = Shader.Find("Unlit/Texture");
+                    if (sMenu == null) return;
+                }
+                var mat = new Material(sMenu);
                 mat.mainTexture = tex;
                 rend.sharedMaterial = mat;
             }
