@@ -281,7 +281,16 @@ namespace DFUQuest3
                 // shader is somehow still missing, we log an error and keep the
                 // panel opaque rather than crash. The black background remains visible
                 // (not ideal) but the UI remains usable.
-                Shader s = Shader.Find("DFUQuest3/VRUIChromaKey");
+                // VR port: gameplay HUD uses VRHUDAlwaysOnTop — chroma-key transparency
+                // PLUS ZTest Always/Overlay queue so nearby dungeon walls can never
+                // occlude the HUD (a HUD is UI, not world geometry). Falls back to the
+                // plain chroma-key (depth-tested) if the shader is missing.
+                Shader s = Shader.Find("DFUQuest3/VRHUDAlwaysOnTop");
+                if (s == null || !s.isSupported)
+                {
+                    Debug.LogError("[DFUQuest3] VRHUDAlwaysOnTop shader NOT AVAILABLE — falling back to VRUIChromaKey (depth-tested).");
+                    s = Shader.Find("DFUQuest3/VRUIChromaKey");
+                }
                 if (s == null || !s.isSupported)
                 {
                     Debug.LogError("[DFUQuest3] VRUIChromaKey shader NOT AVAILABLE in SetPanelMaterialForMode — " +
