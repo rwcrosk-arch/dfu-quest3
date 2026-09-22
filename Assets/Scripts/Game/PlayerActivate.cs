@@ -1013,7 +1013,15 @@ namespace DaggerfallWorkshop.Game
                         else if (loot.Items.Count == 0)
                         {
                             DaggerfallUI.AddHUDText(TextManager.Instance.GetLocalizedText("theBodyHasNoTreasure"));
-                            DisableEmptyCorpseContainer(loot.gameObject);
+                            // VR port: upstream disables the corpse's collider here so the
+                            // 'no treasure' message can only ever appear once. In VR the
+                            // HUD text auto-fades in a couple of seconds and the player
+                            // may miss it — then the corpse silently becomes inert and
+                            // re-activating it does nothing at all. Keep the collider
+                            // enabled so the message repeats on every activation; the
+                            // cost is one idle collider.
+                            if (!UnityEngine.XR.XRSettings.isDeviceActive)
+                                DisableEmptyCorpseContainer(loot.gameObject);
                             return;
                         }
                         else if (loot.Items.Count == 1 && loot.Items.Contains(ItemGroups.Weapons, (int)Weapons.Arrow))
