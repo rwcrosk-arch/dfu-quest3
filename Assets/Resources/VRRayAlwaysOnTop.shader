@@ -21,8 +21,10 @@ Shader "DFUQuest3/VRRayAlwaysOnTop"
     }
     SubShader
     {
-        // 4100 = above the Overlay(4000) HUD/menu panels, below nothing else.
-        Tags { "Queue"="Transparent+100" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" }
+        // MUST sit above the Overlay(4000) HUD/menu panels — Overlay+100 = 4100.
+        // (Transparent+100 would be 3100 = BELOW the panels, which is exactly the
+        // bug this shader exists to fix.)
+        Tags { "Queue"="Overlay+100" "RenderType"="Transparent" "IgnoreProjector"="True" "PreviewType"="Plane" }
         Blend SrcAlpha OneMinusSrcAlpha
         ZTest Always
         ZWrite Off
