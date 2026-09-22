@@ -22,6 +22,7 @@ using DaggerfallWorkshop.Game.Banking;
 using DaggerfallWorkshop.Game.Guilds;
 using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 using System.Collections.Generic;
+using System.Linq;
 using DaggerfallWorkshop.Utility.AssetInjection;
 using DaggerfallWorkshop.Game.Utility;
 using DaggerfallWorkshop.Game.Formulas;
@@ -323,6 +324,45 @@ namespace DaggerfallWorkshop.Game
                     Debug.Log($"[DFUQuest3] ACTDIAG hit='{hit.transform.name}' layer={hit.transform.gameObject.layer} " +
                               $"dist={hit.distance:F2}m loot={(hit.transform.GetComponent<DaggerfallLoot>() != null ? "yes" : "no")} " +
                               $"rayPos={ray.origin} rayDir={ray.direction}");
+
+                    // VR port: corpse-loot probe. Ross's corpse attempts hit the floor
+                    // (CombinedModels) 3-4m out; the CorpseMarker's collider is never hit.
+                    // Census all DaggerfallLoot containers near the hit point + the ray,
+                    // with their collider state, so we can see where the marker actually is.
+                    {
+                        var nearby = new List<(Collider col, DaggerfallLoot container)>();
+                        foreach (Collider c in Physics.OverlapSphere(hit.point, 4f, playerLayerMask))
+                        {
+                            var l = c.GetComponent<DaggerfallLoot>();
+                            if (l != null) nearby.Add((c, l));
+                        }
+                        // Also probe along the ray at 1m steps for loot colliders
+                        for (float t = 1f; t <= 5f; t += 1f)
+                        {
+                            Vector3 p = ray.origin + ray.direction * t;
+                            foreach (Collider c in Physics.OverlapSphere(p, 0.7f, playerLayerMask))
+                            {
+                                var l = c.GetComponent<DaggerfallLoot>();
+                                if (l != null && !nearby.Any(n => n.col == c))
+                                    nearby.Add((c, l));
+                            }
+                        }
+                        if (nearby.Count > 0)
+                        {
+                            var sb = new System.Text.StringBuilder("[DFUQuest3] ACTDIAG-LOOT census:");
+                            foreach (var entry in nearby)
+                            {
+                                sb.Append($"\n  '{entry.col.name}' layer={entry.col.gameObject.layer} enabled={entry.col.enabled} " +
+                                          $"type={entry.col.GetType().Name} pos={entry.col.transform.position} " +
+                                          $"container={entry.container.ContainerType} items={(entry.container.Items != null ? entry.container.Items.Count : -1)}");
+                            }
+                            Debug.Log(sb.ToString());
+                        }
+                        else
+                        {
+                            Debug.Log("[DFUQuest3] ACTDIAG-LOOT census: no DaggerfallLoot colliders within 4m of hit point or along ray");
+                        }
+                    }
                     bool hitBuilding = false;
                     bool buildingUnlocked = false;
                     int buildingLockValue = 0;
