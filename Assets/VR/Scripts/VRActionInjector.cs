@@ -88,24 +88,10 @@ namespace DFUQuest3
                 im.AddAction(act);
                 Debug.Log("[DFUQuest3] Y -> menu cycle: " + act);
             }
-            // Left grip -> left-hand attack. CALL DIRECTLY: a injected SwingWeapon action
-            // never reaches WeaponManager.Update (InputManager.Update at order 0 already
-            // moved/cleared the lists before this order-100 injector runs). Mirrors the
-            // ToggleSheath direct-call fix above.
-            if (Pressed(VRActionBinder.GripLeftAction))
-            {
-                var wm = DaggerfallWorkshop.Game.GameManager.Instance?.WeaponManager;
-                if (wm != null)
-                {
-                    wm.VRTriggerAttack();
-                    Debug.Log("[DFUQuest3] LeftGrip -> VRTriggerAttack (direct)");
-                }
-                else
-                {
-                    im.AddAction(InputManager.Actions.SwingWeapon);
-                    Debug.Log("[DFUQuest3] LeftGrip -> SwingWeapon (fallback)");
-                }
-            }
+            // Left grip = BLOCK ONLY (Ross's call after on-device testing: the press-edge
+            // attack fired a stray swing every time he raised his guard). Block stance is
+            // read as a HOLD by VRBlockController directly from VRActionBinder.GripLeftAction;
+            // no attack action on this control anymore. Right grip remains the attack.
             // X button (left primary) -> Jump (HELD, like the spacebar). DFU's AcrobatMotor
             // checks HasAction(Jump) continuously + requires GroundedTime >= 0.1f.
             if (Held(VRActionBinder.XButtonAction))
