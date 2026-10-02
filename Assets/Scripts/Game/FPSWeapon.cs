@@ -121,6 +121,65 @@ namespace DaggerfallWorkshop.Game
         }
         public Rect CurrentAnimRect { get { return curAnimRect; } }
 
+        // VR: pixel size (excluding border/padding) of the frame OnGUI is currently
+        // drawing — lets a world-space renderer size its quad proportionally to the
+        // sprite instead of stretching every weapon to one fixed box.
+        public Vector2 CurrentWeaponSizePx
+        {
+            get
+            {
+                if (weaponAtlas == null || weaponAtlas.WeaponIndices == null ||
+                    weaponAnims == null)
+                    return Vector2.zero;
+                int rec = (WeaponType == WeaponTypes.Bow) ? 0 : weaponAnims[(int)weaponState].Record;
+                if (rec < 0 || rec >= weaponAtlas.WeaponIndices.Length)
+                    return Vector2.zero;
+                var ri = weaponAtlas.WeaponIndices[rec];
+                return new Vector2(ri.width, ri.height);
+            }
+        }
+
+        // VR: off-hand (left) visual support — the engine pre-caches the LEFT-hand weapon
+        // atlas in weaponAtlasCache[1] (WeaponManager.UpdateLeftHandGfxCache); expose its
+        // idle pose so DFUQuest3.VRWeaponRenderer can draw a left-hand weapon/shield quad.
+        // Mirrors the additive-accessor pattern of CurrentWeaponTexture (no engine behavior
+        // change). Weapon type of the cached left atlas, for record lookups.
+        WeaponTypes leftHandCacheWeaponType = WeaponTypes.None;
+
+        public Texture2D GetLeftHandAtlasTexture()
+        {
+            var a = weaponAtlasCache[1];
+            return a != null ? a.AtlasTexture : null;
+        }
+
+        /// <summary>
+        /// Idle frame of the pre-cached LEFT-hand weapon atlas. Mirrored presentation
+        /// (negative-width UV) is applied by the consumer, as FPSWeapon.OnGUI does for
+        /// FlipHorizontal (curAnimRect negative-width convention, line ~398).
+        /// </summary>
+        public bool TryGetLeftHandIdleVisual(out Texture2D tex, out Rect uv, out Vector2 sizePx)
+        {
+            tex = null; uv = default(Rect); sizePx = default(Vector2);
+            var a = weaponAtlasCache[1];
+            if (a == null || a.WeaponRects == null || a.WeaponIndices == null ||
+                leftHandCacheWeaponType == WeaponTypes.None || leftHandCacheWeaponType == WeaponTypes.Bow)
+                return false;
+            var anims = WeaponBasics.GetWeaponAnims(leftHandCacheWeaponType);
+            if (anims == null || anims.Length <= (int)WeaponStates.Idle)
+                return false;
+            int rec = anims[(int)WeaponStates.Idle].Record;
+            if (rec < 0 || rec >= a.WeaponIndices.Length)
+                return false;
+            int idx = a.WeaponIndices[rec].startIndex;
+            if (idx < 0 || idx >= a.WeaponRects.Length)
+                return false;
+            Rect r = a.WeaponRects[idx];
+            tex = a.AtlasTexture;
+            uv = new Rect(r.x, r.y, r.width, r.height);
+            sizePx = new Vector2(a.WeaponIndices[rec].width, a.WeaponIndices[rec].height);
+            return true;
+        }
+
         #endregion
 
         void Start()
@@ -342,6 +401,24 @@ namespace DaggerfallWorkshop.Game
             {
                 CacheWeaponAtlas(GetWeaponTextureAtlas(fileName, metalType, 2, 2, out var animation, true), isRightHand);
                 CacheCustomWeaponAnimation(animation, isRightHand);
+            }
+            if (!isRightHand)
+            {
+                // VR: the shared cache search (GetCachedWeaponAtlas) looks at BOTH slots;
+                // when the right hand already holds this atlas, nothing lands in slot [1]
+                // and off-hand idle lookups read the WRONG atlas (fist frames). Force the
+                // left slot to always carry exactly this request's atlas.
+                var atlas = GetCachedWeaponAtlas(fileName, metalType);
+                if (atlas == null)
+                {
+                    var customAnim = (CustomWeaponAnimation)null;
+                    atlas = GetWeaponTextureAtlas(fileName, metalType, 2, 2, out customAnim, true);
+                    CacheWeaponAtlas(atlas, false);
+                    CacheCustomWeaponAnimation(customAnim, false);
+                }
+                if (weaponAtlasCache[1] != atlas)
+                    weaponAtlasCache[1] = atlas;
+                leftHandCacheWeaponType = weaponType;   // VR: record type for off-hand idle lookups
             }
         }
 

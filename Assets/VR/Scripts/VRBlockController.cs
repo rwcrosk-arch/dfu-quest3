@@ -1,16 +1,28 @@
-// DFU Quest3 VR — physical blocking (left grip hold).
+// DFU Quest3 VR — per-hand contextual combat (grip = whatever that hand holds).
 //
-// DFU has NO player block at all (verified: upstream FPSWeapon.cs / WeaponManager.cs
-// contain zero block code; classic Daggerfall's hold-right-mouse block was never
-// ported). This builds the mechanic VR-native: HOLD LEFT GRIP while a melee weapon is
-// drawn = defensive stance. Incoming MELEE damage rolls a block chance; success plays
-// a parry sound and negates the hit.
+// Semantics (Ross, 2026-09-24): each hand's grip speaks for what that hand holds.
+//   RIGHT grip: weapon or fists -> attack. (Shields can never be in the right hand —
+//               DFU equips shields LeftHand-only, verified ItemEquipTable.cs.)
+//   LEFT grip:  left weapon    -> dual-wield attack (LEFT weapon's damage/skill/
+//               enchantments apply via the active-hand flip trick below);
+//               shield/empty  -> tap = timed guard window (IsBlocking);
+//               2H weapon equipped (ItemHands.Both) -> both grips swing that weapon,
+//               blocking impossible (classic-faithful: 2H can't block).
 //
-// Formula (classic-flavored): chance% = equippedWeaponSkill * 0.5, +15 if a shield is
-// equipped, capped at 75%. Small fatigue cost per attempt. Melee only in v1 (arrows/
-// spells untouched).
+// Dual-wield damage — the flip trick (verified engine seams):
+//   WeaponManager (~line 909): strikingWeapon = usingRightHand ? currentRightHandWeapon
+//   : currentLeftHandWeapon — ALL damage/skill-tally/enchant attribution follows the
+//   public `UsingRightHand` flag. So a left attack = UsingRightHand=false for the
+//   swing, restored to true after. WM.Update (order 0) re-applies the hand config
+//   (UpdateHands -> ApplyWeapon) every frame BEFORE our order-50 update, so setting
+//   the flag here executes the attack with the left-hand config exactly one frame
+//   after the flip — invisible to the player.
 //
-// Consumed by EnemyAttack.SendDamageToPlayer via VRBlockController.TryBlock().
+// Hook preserved: EnemyAttack.SendDamageToPlayer -> VRBlockController.TryBlock
+// (class/field names unchanged so the upstream diff stays minimal).
+//
+// Grip ownership: VRBlockController is the ONLY reader of grip presses (the injector's
+// grip branches were removed 2026-09-24) so edge semantics live in exactly one place.
 using UnityEngine;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
@@ -18,7 +30,6 @@ using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallConnect;
-using DaggerfallWorkshop.Utility;
 
 namespace DFUQuest3
 {
@@ -28,7 +39,22 @@ namespace DFUQuest3
         public static VRBlockController Instance { get; private set; }
         public static bool IsBlocking { get; private set; }
 
+        /// <summary>True while a left-hand(dual-wield) swing owns the active-hand slot —
+        /// consumers (e.g. VRWeaponRenderer) hide the right-hand visuals during it.</summary>
+        public static bool IsLeftHandActive
+        {
+            get { return Instance != null && Instance.handState != HandState.RightActive; }
+        }
+
+        const float guardWindowSeconds = 1.2f;   // timed guard after a shield/empty-hand tap
         const float fatigueCostPerBlock = 2f;
+
+        // Dual-wield flip state machine
+        enum HandState { RightActive, LeftPending, LeftAttacking, RestorePending }
+        HandState handState = HandState.RightActive;
+
+        bool pendingRightAttack;   // right-grip queued while a left swing owned the hand
+        float guardUntil;          // game-time bound of the guard window
 
         void Awake()
         {
@@ -38,49 +64,209 @@ namespace DFUQuest3
 
         void Update()
         {
-            bool now = ComputeBlocking();
-            if (now != IsBlocking)
+            var wm = GameManager.Instance ? GameManager.Instance.WeaponManager : null;
+
+            // Pending dual-wield sequencing (runs AFTER WM.Update's ApplyWeapon at order 0)
+            if (wm != null && wm.ScreenWeapon != null)
             {
-                // Stance transition logging (throttled naturally by the edge) so
-                // block-stance engagement is debuggable from Player.log alone.
-                Debug.Log($"[DFUQuest3] BLOCK STANCE {(now ? "ON" : "OFF")} (grip={gripValue:F2})");
+                switch (handState)
+                {
+                    case HandState.LeftPending:
+                        wm.UsingRightHand = false;  // WM applies left config on its next frame
+                        handState = HandState.LeftAttacking;
+                        Debug.Log("[DFUQuest3] DW flip -> LEFT hand active");
+                        break;
+
+                    case HandState.LeftAttacking:
+                        if (!wm.Sheathed)
+                        {
+                            wm.VRTriggerAttack();
+                            if (wm.ScreenWeapon.IsAttacking())
+                            {
+                                handState = HandState.RestorePending;
+                                Debug.Log("[DFUQuest3] DW left attack issued");
+                            }
+                            // else: equip countdown / cooldown rejected the fire —
+                            // stay in LeftAttacking and retry next frame (hand stays
+                            // flipped left until the attack actually starts).
+                        }
+                        else
+                        {
+                            wm.UsingRightHand = true;   // sheathed mid-flip: abort cleanly
+                            handState = HandState.RightActive;
+                            Debug.Log("[DFUQuest3] DW aborted (sheathed)");
+                        }
+                        break;
+
+                    case HandState.RestorePending:
+                        // swing finished (or VRTriggerAttack rejected it) -> hand back right
+                        if (!wm.ScreenWeapon.IsAttacking())
+                        {
+                            wm.UsingRightHand = true;
+                            handState = HandState.RightActive;
+                            Debug.Log("[DFUQuest3] DW flip back -> RIGHT hand active");
+                        }
+                        break;
+                }
+
+                // Queued right attack fires once the hand is back and idle
+                if (pendingRightAttack && handState == HandState.RightActive
+                    && !wm.ScreenWeapon.IsAttacking())
+                {
+                    pendingRightAttack = false;
+                    if (!wm.Sheathed)
+                    {
+                        wm.VRTriggerAttack();
+                        Debug.Log("[DFUQuest3] queued RIGHT attack fired");
+                    }
+                }
             }
-            IsBlocking = now;
+            else
+            {
+                pendingRightAttack = false;
+            }
+
+            ReadGripEdges();
         }
 
-        float gripValue;
-
-        bool ComputeBlocking()
+        void ReadGripEdges()
         {
-            // Left grip held
-            var grip = VRActionBinder.GripLeftAction;
-            if (grip == null)
-                return false;
-            gripValue = grip.ReadValue<float>();
-            if (gripValue <= 0.5f)
-                return false;
+            // Guard window countdown first (game time — freezes while paused)
+            bool now = Time.time < guardUntil && GuardAllowed();
+            if (now != IsBlocking)
+                Debug.Log($"[DFUQuest3] GUARD {(now ? "ON" : "OFF")} (window {(now ? guardUntil - Time.time : 0f):F1}s left)");
+            IsBlocking = now;
 
+            // Edge-detect grips — one reader, one semantic owner
+            var gl = VRActionBinder.GripLeftAction;
+            if (gl != null && gl.enabled)
+            {
+                bool pressed;
+                try { pressed = gl.WasPressedThisFrame(); } catch { pressed = false; }
+                if (pressed) OnLeftGripPressed();
+            }
+            var gr = VRActionBinder.GripRightAction;
+            if (gr != null && gr.enabled)
+            {
+                bool pressed;
+                try { pressed = gr.WasPressedThisFrame(); } catch { pressed = false; }
+                if (pressed) OnRightGripPressed();
+            }
+        }
+
+        // ---- per-hand context resolution ----
+
+        static DaggerfallUnityItem LeftItem()
+        {
+            var pe = GameManager.Instance ? GameManager.Instance.PlayerEntity : null;
+            return pe != null ? pe.ItemEquipTable.GetItem(EquipSlots.LeftHand) : null;
+        }
+
+        static DaggerfallUnityItem RightItem()
+        {
+            var pe = GameManager.Instance ? GameManager.Instance.PlayerEntity : null;
+            return pe != null ? pe.ItemEquipTable.GetItem(EquipSlots.RightHand) : null;
+        }
+
+        static bool IsTwoHanded(DaggerfallUnityItem item)
+        {
+            return item != null && ItemEquipTable.GetItemHands(item) == ItemHands.Both;
+        }
+
+        bool GuardAllowed()
+        {
+            // Same gating family as the original stance: no guard while casting;
+            // sheathed handled by ShowWeapon check at window-raising time — but a
+            // mid-window sheath should not keep guarding either.
+            var wm = GameManager.Instance ? GameManager.Instance.WeaponManager : null;
+            if (wm == null || wm.ScreenWeapon == null || !wm.ScreenWeapon.ShowWeapon)
+                return false;
             var gm = GameManager.Instance;
-            if (gm == null || gm.WeaponManager == null)
-                return false;
-
-            // Only while a weapon is actively shown (sheathed/holstered = no block)
-            var wm = gm.WeaponManager;
-            if (wm.ScreenWeapon == null || !wm.ScreenWeapon.ShowWeapon)
-                return false;
-
-            // No blocking while casting or with a bow readied (melee weapons only)
             if (gm.PlayerSpellCasting != null && gm.PlayerSpellCasting.IsPlayingAnim)
                 return false;
+            // Bow active hand: no guard (classic + our v1 melee-only rule)
             if (wm.ScreenWeapon.WeaponType == WeaponTypes.Bow)
                 return false;
-
             return true;
         }
 
+        bool CanActNow(WeaponManager wm)
+        {
+            return wm != null && wm.ScreenWeapon != null
+                && wm.ScreenWeapon.ShowWeapon
+                && !wm.ScreenWeapon.IsAttacking()
+                && !GameManager.IsGamePaused;
+        }
+
+        // ---- grip entry points ----
+
+        public void OnRightGripPressed()
+        {
+            var wm = GameManager.Instance ? GameManager.Instance.WeaponManager : null;
+            if (wm == null || wm.ScreenWeapon == null) return;
+
+            // mid left-swing: queue for when the hand returns
+            if (handState != HandState.RightActive)
+            {
+                pendingRightAttack = true;
+                Debug.Log("[DFUQuest3] R-grip queued (left swing owns the hand)");
+                return;
+            }
+            if (!CanActNow(wm)) return;
+
+            // Right hand: weapon or fists -> attack. 2H lives here too (it is the
+            // right-hand item). VRTriggerAttack carries sheath/cooldown/paralyzed/
+            // climb guards mirroring the click-attack path.
+            wm.VRTriggerAttack();
+            Debug.Log("[DFUQuest3] R-grip -> attack (right item=" +
+                (RightItem() != null ? RightItem().shortName : "fists") + ")");
+        }
+
+        public void OnLeftGripPressed()
+        {
+            var wm = GameManager.Instance ? GameManager.Instance.WeaponManager : null;
+            if (wm == null || wm.ScreenWeapon == null) return;
+            if (!CanActNow(wm)) return;
+
+            // Bow drawn: no left-hand duty at all (bow needs both hands; classic-faithful).
+            if (wm.ScreenWeapon.WeaponType == WeaponTypes.Bow)
+            {
+                Debug.Log("[DFUQuest3] L-grip ignored (bow drawn)");
+                return;
+            }
+
+            var left = LeftItem();
+            var right = RightItem();
+
+            // 2H weapon: BOTH hands belong to it — either grip swings it, no blocking.
+            if (IsTwoHanded(right))
+            {
+                wm.VRTriggerAttack();
+                Debug.Log("[DFUQuest3] L-grip -> attack 2H weapon (" + right.shortName + ")");
+                return;
+            }
+
+            if (left != null && !left.IsShield && left.ItemGroup == ItemGroups.Weapons)
+            {
+                // dual-wield: flip active hand to LEFT; attack fires next frame
+                // (WM's order-0 Update applies the left config in between); hand
+                // restores when the swing completes.
+                if (handState != HandState.RightActive) return;   // already mid flip/swing
+                handState = HandState.LeftPending;
+                Debug.Log("[DFUQuest3] L-grip -> dual-wield attack (" + left.shortName + ")");
+            }
+            else if (left == null || left.IsShield)
+            {
+                // shield or empty left hand -> timed guard window
+                guardUntil = Time.time + guardWindowSeconds;
+                Debug.Log("[DFUQuest3] L-grip -> guard window " + guardWindowSeconds +
+                    "s (left=" + (left != null ? left.shortName : "empty") + ")");
+            }
+            // anything else in the left slot (non-weapon non-shield): ignore
+        }
+
         /// <summary>
-        /// Roll a block attempt against incoming melee damage.
-        /// Returns true when the hit is fully blocked (parry sound + HUD feedback already fired).
+        /// Roll a block attempt against incoming melee damage (hook unchanged).
         /// </summary>
         public bool TryBlock(int damage)
         {
@@ -96,7 +282,13 @@ namespace DFUQuest3
             // Daggerfall has no Shield skill).
             var weapon = player.ItemEquipTable.GetItem(EquipSlots.RightHand);
             if (weapon == null)
-                return false; // fists: no block in v1
+            {
+                // Fists: no block in v1 — but SAY so (both-outcome feedback rule; a
+                // silent window reads as broken).
+                DaggerfallUI.AddHUDText("No weapon to block with");
+                Debug.Log("[DFUQuest3] BLOCK FAIL: no right-hand weapon (fists)");
+                return false;
+            }
 
             int skillId = (int)weapon.GetWeaponSkillID();
             int skillValue = player.Skills.GetLiveSkillValue((DFCareer.Skills)skillId);

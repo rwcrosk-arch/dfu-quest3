@@ -24,6 +24,27 @@ namespace DFUQuest3
         public Vector3 controllerPosition;
         public Quaternion controllerRotation;
 
+        // LEFT hand pose (per-hand combat visuals: left weapon quad, shield quad).
+        // Written by the same SSE parser (responses routed by request id).
+        public bool leftControllerValid;
+        public Vector3 leftControllerPosition;
+        public Quaternion leftControllerRotation;
+
+        // Pose freshness (thread-safe): the MCP server keeps serving the LAST pose when a
+        // controller stops actively tracking — consumers that trust the non-zero position
+        // freeze on a dead pose (verified frozen-ray/shield trap). Consumers MUST combine
+        // *Valid with PoseFresh(...). Stale threshold: 0.5s of no fresh frames.
+        static readonly System.Diagnostics.Stopwatch poseClock = System.Diagnostics.Stopwatch.StartNew();
+        double[] lastHandClock = new double[2];   // [0]=right, [1]=left (poseClock seconds)
+        public const double maxPoseAge = 0.5;
+
+        public bool PoseFresh(bool leftHand)
+        {
+            double t = lastHandClock[leftHand ? 1 : 0];
+            if (t <= 0.0) return false;
+            return (poseClock.Elapsed.TotalSeconds - t) < maxPoseAge;
+        }
+
         const int pollIntervalMs = 50;      // 20 Hz pose polling
         const int requestTimeoutMs = 500;
         Thread readThread;
@@ -116,8 +137,19 @@ namespace DFUQuest3
                     {
                         // Use pose_type=aim (the controller's pointing direction) so the ray
                         // follows where the controller aims. Grip forward points sideways.
+                        // Both hands polled alternately (~10 Hz each): right (id 1) feeds the
+                        // pointer/weapon quad; left (id 2) anchors the left-hand weapon/shield
+                        // visuals (per-hand combat, 2026-09-24). Responses route by id —
+                        // ParseResponse reads \"id\":N from the SSE data.
                         var json = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"right\",\"pose_type\":\"aim\"}}}";
                         SendRequest(client, json);
+                    }
+                    Thread.Sleep(pollIntervalMs);
+                    lock (readLock) { endpoint = messageEndpoint; }
+                    if (!string.IsNullOrEmpty(endpoint))
+                    {
+                        var jsonL = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"openxr_get_controller_pose\",\"arguments\":{\"hand\":\"left\",\"pose_type\":\"aim\"}}}";
+                        SendRequest(client, jsonL);
                     }
                     Thread.Sleep(pollIntervalMs);
                 }
@@ -136,7 +168,25 @@ namespace DFUQuest3
         }
 
         // SSE "data" for a tools/call result: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{poseJson}"}]}}
+        // id 1 = right hand, id 2 = left hand (see write loop). Routes the pose into
+        // the matching public fields; the right-hand fields keep their original names
+        // so every existing consumer (VRAim, VRUIOverlay, VRWeaponRenderer) is untouched.
         void ParseResponse(string data)
+        {
+            var idStart = data.IndexOf("\"id\":");
+            int handId = 1;
+            if (idStart >= 0)
+            {
+                idStart += 5;
+                var idEnd = data.IndexOf(',', idStart);
+                if (idEnd < 0) idEnd = data.Length;
+                int.TryParse(data.Substring(idStart, idEnd - idStart).Trim(), out handId);
+            }
+            if (handId == 2) ParsePoseJson(data, toLeft: true);
+            else ParsePoseJson(data, toLeft: false);
+        }
+
+        void ParsePoseJson(string data, bool toLeft)
         {
             var textStart = data.IndexOf("\"text\":\"");
             if (textStart < 0) return;
@@ -171,11 +221,7 @@ namespace DFUQuest3
                 }
             }
             var poseJson = sb.ToString();
-            ParsePoseJson(poseJson);
-        }
 
-        void ParsePoseJson(string poseJson)
-        {
             // Strip the escaped newlines Unity's StringContent may carry, and whitespace.
             poseJson = poseJson.Replace("\\n", "").Replace("\\r", "").Replace(" ", "");
             var posStart = poseJson.IndexOf("\"position\":[");
@@ -201,10 +247,21 @@ namespace DFUQuest3
 
                 // OpenXR→Unity coordinate conversion (Meta's documented table):
                 //   position Z negate; quaternion X negate, Y negate, Z/W same.
-                controllerPosition = new Vector3(pos[0], pos[1], -pos[2]);
-                controllerRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
-                // Consider it valid if the position is non-zero (a real tracked pose).
-                controllerValid = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2] > 0.0001f;
+                bool valid = pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2] > 0.0001f;
+                if (toLeft)
+                {
+                    leftControllerPosition = new Vector3(pos[0], pos[1], -pos[2]);
+                    leftControllerRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
+                    leftControllerValid = valid;
+                    lastHandClock[1] = poseClock.Elapsed.TotalSeconds;   // fresh frame stamp
+                }
+                else
+                {
+                    controllerPosition = new Vector3(pos[0], pos[1], -pos[2]);
+                    controllerRotation = new Quaternion(-rot[0], -rot[1], rot[2], rot[3]);
+                    controllerValid = valid;
+                    lastHandClock[0] = poseClock.Elapsed.TotalSeconds;
+                }
             }
         }
     }

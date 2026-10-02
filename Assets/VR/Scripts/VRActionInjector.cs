@@ -88,10 +88,11 @@ namespace DFUQuest3
                 im.AddAction(act);
                 Debug.Log("[DFUQuest3] Y -> menu cycle: " + act);
             }
-            // Left grip = BLOCK ONLY (Ross's call after on-device testing: the press-edge
-            // attack fired a stray swing every time he raised his guard). Block stance is
-            // read as a HOLD by VRBlockController directly from VRActionBinder.GripLeftAction;
-            // no attack action on this control anymore. Right grip remains the attack.
+            // Left/Right grips: ALL grip semantics (contextual per-hand combat — attack,
+            // dual-wield, guard window, 2H) live in VRBlockController, which edge-detects
+            // both grips itself at order 50. The injector must NOT double-consume the
+            // press edges; these entry points exist for any future need to inject grips
+            // from outside the edge path.
             // X button (left primary) -> Jump (HELD, like the spacebar). DFU's AcrobatMotor
             // checks HasAction(Jump) continuously + requires GroundedTime >= 0.1f.
             if (Held(VRActionBinder.XButtonAction))
@@ -150,21 +151,7 @@ namespace DFUQuest3
             {
                 im.AddAction(InputManager.Actions.Run);
             }
-            // Right grip -> right-hand attack (same direct-call rationale as left grip).
-            if (Pressed(VRActionBinder.GripRightAction))
-            {
-                var wm = DaggerfallWorkshop.Game.GameManager.Instance?.WeaponManager;
-                if (wm != null)
-                {
-                    wm.VRTriggerAttack();
-                    Debug.Log("[DFUQuest3] RightGrip -> VRTriggerAttack (direct)");
-                }
-                else
-                {
-                    im.AddAction(InputManager.Actions.SwingWeapon);
-                    Debug.Log("[DFUQuest3] RightGrip -> SwingWeapon (fallback)");
-                }
-            }
+            // Right grip handled by VRBlockController (contextual per-hand combat).
             // Menu button -> CONTEXT-AWARE. If a window is open (WindowCount>0, i.e. not
             // just the HUD), it acts as BACK/EXIT (close the top window). If no window is
             // open, it opens the pause options dialog (Save/Load/Settings/Controls).
