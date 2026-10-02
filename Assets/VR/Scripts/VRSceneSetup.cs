@@ -94,6 +94,7 @@ namespace DFUQuest3
             // the DDOL panel's scene-load re-wiring.
             var weaponRendererGO = new GameObject("DFU VR Weapon Renderer");
             DontDestroyOnLoad(weaponRendererGO);
+            weaponRendererGO.AddComponent<VR3DWeaponPack>();
             weaponRendererGO.AddComponent<VRWeaponRenderer>().poseBridge = mcpBridge;
 
             // VR keyboard — world-space text entry for DFU TextBoxes (save/player name).

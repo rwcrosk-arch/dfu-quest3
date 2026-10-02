@@ -52,6 +52,113 @@ namespace DFUQuest3
         bool nreLogged;
         float diagTimer = 3f;
 
+        // ---- 3D pack path (preferred; sprite quads stay as fallback) ----
+        public VR3DWeaponPack pack;
+        public bool rightModel3D = true;    // 3D models on the right hand (sprite fallback if off/unavailable)
+        public bool leftModel3D = true;
+        GameObject rightModel, leftModel;   // instantiated pack models (un-parented under this DDOL transform)
+        int rightModelId, leftModelId;      // currently instantiated ids (0 = none yet)
+
+        VR3DWeaponPack Pack
+        {
+            get
+            {
+                if (pack == null) pack = GetComponent<VR3DWeaponPack>();
+                if (pack == null) pack = FindFirstObjectByType<VR3DWeaponPack>();
+                return pack;
+            }
+        }
+
+        /// <summary>
+        /// Attach/position the pack model for one hand. Returns false to let the sprite
+        /// quad path proceed (no pack, no prefab for this id, or load failure).
+        /// Model ids derive from the EQUIPPED ITEM (not ScreenWeapon) so the right-hand
+        /// model keeps its identity during the dual-wield flip window.
+        /// Note v1: pack models hold their idle pose during swings (static meshes, no
+        /// rig) — swing feedback comes from the controller motion itself.
+        /// </summary>
+        bool UpdateHandModel(bool rightHand, DaggerfallUnityItem item, Vector3 fallbackOffset,
+            Vector3 localOffset, out Vector3 pos, out Quaternion rot)
+        {
+            var p3d = Pack;
+            if (p3d == null || !p3d.PackLoaded || item == null)
+            {
+                pos = default(Vector3); rot = default(Quaternion); return false;
+            }
+
+            int id = 0;
+            if (item.IsShield)
+            {
+                var shieldMetal = DaggerfallUnity.Instance.ItemHelper.ConvertItemMaterialToAPIMetalType(item);
+                id = VR3DWeaponPack.ShieldPrefabId(shieldMetal, VR3DWeaponPack.ShieldTypeIndex(item.shortName));
+            }
+            else if (item.ItemGroup == ItemGroups.Weapons)
+            {
+                // Classic fine-grained type (Dagger=113..Long_Bow=130) — the pack's index
+                // space. (The atlas-level converter collapses 8 blades into LongBlade.)
+                var w = (Weapons)item.TemplateIndex;
+                if (w == Weapons.Short_Bow || w == Weapons.Long_Bow || w == Weapons.Arrow)
+                {
+                    pos = default(Vector3); rot = default(Quaternion);
+                    return false;   // no bow models in pack v1 (crossbow prefab exists but no mechanic yet)
+                }
+                var metal = DaggerfallUnity.Instance.ItemHelper.ConvertItemMaterialToAPIMetalType(item);
+                id = VR3DWeaponPack.WeaponPrefabId(metal, w);
+            }
+            if (id == 0) { pos = default(Vector3); rot = default(Quaternion); return false; }
+
+            GameObject model = rightHand ? rightModel : leftModel;
+            int currentId = rightHand ? rightModelId : leftModelId;
+            if (model == null || currentId != id)
+            {
+                if (model != null) Destroy(model);
+                model = p3d.CreateHandModel(id, "3D " + (rightHand ? "R" : "L") + " " + id);
+                if (model != null)
+                {
+                    model.transform.SetParent(transform, false);
+                    DontDestroyOnLoad(model);   // survive scene loads like the renderer itself
+                    // Auto-scale: longest bounds axis -> classic length for the class
+                    var rends = model.GetComponentsInChildren<Renderer>();
+                    if (rends != null && rends.Length > 0)
+                    {
+                        Bounds b = rends[0].bounds;
+                        foreach (var r2 in rends) b.Encapsulate(r2.bounds);
+                        float longest = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
+                        float target = p3d.TargetLength((Weapons)item.TemplateIndex);
+                        float scale = target / Mathf.Max(0.01f, longest);
+                        model.transform.localScale = Vector3.one * scale;
+                        Debug.Log("[DFUQuest3] 3D model attached id=" + id +
+                            " bounds=" + b.size.ToString("F3") + " scale=" + scale.ToString("F3"));
+                    }
+                }
+                if (rightHand) { rightModel = model; rightModelId = id; }
+                else { leftModel = model; leftModelId = id; }
+                if (model == null) { pos = default(Vector3); rot = default(Quaternion); return false; }
+            }
+
+            TrackingToWorld(poseBridge, !rightHand, poseBridge != null &&
+                (rightHand ? poseBridge.controllerValid : poseBridge.leftControllerValid),
+                rightHand ? poseBridge.controllerPosition : poseBridge.leftControllerPosition,
+                rightHand ? poseBridge.controllerRotation : poseBridge.leftControllerRotation,
+                fallbackOffset, out pos, out rot);
+            pos += rot * (rightHand ? localOffset : leftLocalOffset);
+
+            // Grip orientation (Ross, device test 2026-10-03: "should be oriented as if
+            // held in a hand — hilt down, blade up"): pack models aim the blade along
+            // +Z (sprite-era "toward the enemy"); in a fist the blade must RISE. A -90°
+            // X rotation maps mesh +Z onto controller-local +Y (up through the aim
+            // pose), so flicking the wrist sweeps the blade like a real weapon. Pack
+            // origin sits at the pommel — lift ~5cm so the handle lands in the fist.
+            // Shields keep the aim-forward face (their Z face is the threat side).
+            bool isShieldModel = id >= 132000;
+            if (!isShieldModel)
+            {
+                rot *= Quaternion.Euler(-90f, 0f, 0f);
+                pos += rot * new Vector3(0f, 0.05f, 0f);
+            }
+            return true;
+        }
+
         // Shield image cache (item identity -> texture + px size)
         class ShieldArt { public Texture2D tex; public Vector2 sizePx; }
         readonly Dictionary<DaggerfallUnityItem, ShieldArt> shieldArtCache = new Dictionary<DaggerfallUnityItem, ShieldArt>();
@@ -141,7 +248,7 @@ namespace DFUQuest3
             }
         }
 
-        // ---------------- RIGHT hand (active-hand mirror; unchanged semantics) ----------------
+        // ---------------- RIGHT hand (3D pack model first, sprite-mirror fallback) ----------------
         void UpdateRightQuad()
         {
             if (quad == null)
@@ -156,55 +263,81 @@ namespace DFUQuest3
             WeaponManager wm = null;
             try { wm = gm.WeaponManager; if (wm != null) w = wm.ScreenWeapon; } catch { }
 
-            // During a left-hand (dual-wield) swing the engine's single ScreenWeapon shows
-            // the LEFT weapon — hide the right quad so it never appears at the right hand.
-            bool leftOwnsHand = DFUQuest3.VRBlockController.IsLeftHandActive;
-            bool visible = w != null && wm != null && !wm.Sheathed && w.ShowWeapon
-                           && w.WeaponType != DaggerfallWorkshop.WeaponTypes.None
-                           && w.CurrentWeaponTexture != null
-                           && !GameManager.IsGamePaused
-                           && !leftOwnsHand;
-            quad.SetActive(visible);
-            diagTimer -= Time.unscaledDeltaTime;
-            if (diagTimer <= 0f)
+            // 3D pack model first — driven by the EQUIPPED right item (identity is stable
+            // during the dual-wield flip, unlike ScreenWeapon which becomes the left weapon).
+            DaggerfallUnityItem rightItem = null;
+            var pe = gm.PlayerEntity;
+            if (pe != null && pe.ItemEquipTable != null)
+                rightItem = pe.ItemEquipTable.GetItem(EquipSlots.RightHand);
+
+            bool modelShown = false;
+            if (rightModel3D && rightItem != null)
             {
-                diagTimer = 3f;
-                Debug.Log("[DFUQuest3] VRWeapon quad R=" + (visible ? "VISIBLE" : "INVISIBLE") +
-                    " L=" + (leftQuad != null && leftQuad.activeSelf ? "VISIBLE" : "INVISIBLE") +
-                    ": sheathed=" + (wm != null ? wm.Sheathed : -1) +
-                    " showWeapon=" + (w != null ? w.ShowWeapon : -1) +
-                    " type=" + (w != null ? w.WeaponType.ToString() : "null") +
-                    " paused=" + GameManager.IsGamePaused +
-                    " leftHandActive=" + leftOwnsHand +
-                    " blocking=" + DFUQuest3.VRBlockController.IsBlocking +
-                    " mat=" + (mat != null ? mat.shader.name : "null"));
+                Vector3 mpos; Quaternion mrot;
+                modelShown = UpdateHandModel(true, rightItem,
+                    new Vector3(0.25f, 1.2f, 0.5f), localOffset, out mpos, out mrot);
+                if (modelShown)
+                {
+                    // Visibility family mirrors the sprite quad (sheath/spell-cast/pause hide it).
+                    bool vis = wm != null && !wm.Sheathed && w != null && w.ShowWeapon
+                        && !GameManager.IsGamePaused;
+                    rightModel.SetActive(vis);
+                    // 3D model orientation = controller pose (NO billboard — a real sword
+                    // points where the hand points; Z+ mesh convention matches aim pose).
+                    rightModel.transform.SetPositionAndRotation(mpos, mrot);
+                    quad.SetActive(false);
+                }
             }
-            if (!visible) return;
 
-            if (mat.mainTexture != w.CurrentWeaponTexture) mat.mainTexture = w.CurrentWeaponTexture;
-            Rect r = w.CurrentAnimRect;
-            mat.mainTextureOffset = new Vector2(r.x, r.y);
-            mat.mainTextureScale = new Vector2(r.width, r.height);
+            if (!modelShown)
+            {
+                // Sprite fallback path (unchanged semantics)
+                bool leftOwnsHand = DFUQuest3.VRBlockController.IsLeftHandActive;
+                bool visible = w != null && wm != null && !wm.Sheathed && w.ShowWeapon
+                               && w.WeaponType != DaggerfallWorkshop.WeaponTypes.None
+                               && w.CurrentWeaponTexture != null
+                               && !GameManager.IsGamePaused
+                               && !leftOwnsHand;
+                quad.SetActive(visible);
+                diagTimer -= Time.unscaledDeltaTime;
+                if (diagTimer <= 0f)
+                {
+                    diagTimer = 3f;
+                    Debug.Log("[DFUQuest3] VRWeapon quad R=" + (visible ? "VISIBLE" : "INVISIBLE") +
+                        " L=" + (leftQuad != null && leftQuad.activeSelf ? "VISIBLE" : "INVISIBLE") +
+                        ": sheathed=" + (wm != null ? wm.Sheathed : -1) +
+                        " showWeapon=" + (w != null ? w.ShowWeapon : -1) +
+                        " type=" + (w != null ? w.WeaponType.ToString() : "null") +
+                        " paused=" + GameManager.IsGamePaused +
+                        " leftHandActive=" + leftOwnsHand +
+                        " blocking=" + DFUQuest3.VRBlockController.IsBlocking +
+                        " mat=" + (mat != null ? mat.shader.name : "null"));
+                }
+                if (!visible) return;
 
-            // Pixel-true sizing: the quad scales to the sprite's actual dimensions
-            // (fixed 0.4x0.6 stretched every weapon to fill the box — saber read huge).
-            Vector2 sizePx = w.CurrentWeaponSizePx;
-            if (sizePx.x > 1f && sizePx.y > 1f)
-                SetQuadSize(quad, Mathf.Max(0.08f, sizePx.x * metersPerPixel),
-                    Mathf.Max(0.12f, sizePx.y * metersPerPixel));
+                if (mat.mainTexture != w.CurrentWeaponTexture) mat.mainTexture = w.CurrentWeaponTexture;
+                Rect r = w.CurrentAnimRect;
+                mat.mainTextureOffset = new Vector2(r.x, r.y);
+                mat.mainTextureScale = new Vector2(r.width, r.height);
 
-            Vector3 pos; Quaternion rot;
-            TrackingToWorld(poseBridge, false, poseBridge != null && poseBridge.controllerValid,
-                poseBridge != null ? poseBridge.controllerPosition : Vector3.zero,
-                poseBridge != null ? poseBridge.controllerRotation : Quaternion.identity,
-                new Vector3(0.25f, 1.2f, 0.5f), out pos, out rot);
-            pos += rot * localOffset;
+                Vector2 sizePx = w.CurrentWeaponSizePx;
+                if (sizePx.x > 1f && sizePx.y > 1f)
+                    SetQuadSize(quad, Mathf.Max(0.08f, sizePx.x * metersPerPixel),
+                        Mathf.Max(0.12f, sizePx.y * metersPerPixel));
 
-            FaceCamera(pos, ref rot);
-            quad.transform.SetPositionAndRotation(pos, rot);
+                Vector3 pos; Quaternion rot;
+                TrackingToWorld(poseBridge, false, poseBridge != null && poseBridge.controllerValid,
+                    poseBridge != null ? poseBridge.controllerPosition : Vector3.zero,
+                    poseBridge != null ? poseBridge.controllerRotation : Quaternion.identity,
+                    new Vector3(0.25f, 1.2f, 0.5f), out pos, out rot);
+                pos += rot * localOffset;
+
+                FaceCamera(pos, ref rot);
+                quad.transform.SetPositionAndRotation(pos, rot);
+            }
         }
 
-        // ---------------- LEFT hand (weapon idle/live, or shield) ----------------
+        // ---------------- LEFT hand (3D model first; sprite idle/live/shield fallback) ----------------
         void UpdateLeftQuad()
         {
             if (leftQuad == null)
@@ -228,6 +361,25 @@ namespace DFUQuest3
                 leftItem = pe.ItemEquipTable.GetItem(EquipSlots.LeftHand);
 
             bool leftOwnsHand = DFUQuest3.VRBlockController.IsLeftHandActive;
+
+            // 3D pack model first (equipped-item identity; during a left swing the model
+            // simply follows the hand — which is real swing feedback in itself, v1 note).
+            if (leftModel3D && leftItem != null)
+            {
+                Vector3 mpos; Quaternion mrot;
+                if (UpdateHandModel(false, leftItem,
+                    new Vector3(-0.25f, 1.2f, 0.5f), leftLocalOffset, out mpos, out mrot))
+                {
+                    bool vis = leftOwnsHand || (!wm.Sheathed && w.ShowWeapon);
+                    leftModel.SetActive(vis);
+                    leftModel.transform.SetPositionAndRotation(mpos, mrot);
+                    // Guard cue nudges the shield model up/forward while the window is open
+                    if (leftItem.IsShield && DFUQuest3.VRBlockController.IsBlocking)
+                        leftModel.transform.position += mrot * guardRaiseOffset;
+                    leftQuad.SetActive(false);
+                    return;
+                }
+            }
 
             // Priority 1: LIVE left-weapon swing (engine is animating the LEFT weapon now)
             if (leftOwnsHand && !wm.Sheathed && w.ShowWeapon
